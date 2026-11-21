@@ -1,0 +1,5 @@
+source,url,http_status,bytes,elapsed_s,sha256,fetched_at_utc,note
+usage_bielefeld,https://www.romanklinger.de/usagecorpus/,200,9047,0.94,2f347be777e3655cc8e2be0945a13591c4b25c00d035622e4a0e02b61067c8b8,2026-11-21T13:13:17Z,发布页快照：许可声明 ODC-By v1.0 与版权限制的原文出处 attempt=1
+usage_bielefeld,https://www.romanklinger.de/usagecorpus/USAGE-corpus-1.0.2.tar.gz,200,1404183,126.39,50bd31b4104f827209ffe13463badc2bf577b48b6629e63902159d4feb89e0e7,2026-11-21T13:15:23Z,官方语料包 v1.0.2 原件：622 英 + 611 德条标注（不含评论文本） attempt=1
+usage_bielefeld,https://www.romanklinger.de/usagecorpus/usage-sentiment-lexicon-en.csv.gz,200,38914,1.10,ea5c4a7296a2c41fc10b676f8feca622068b8de96ba834aa7a0691d7432314e2,2026-11-21T13:15:24Z,英语短语-极性词典（从语料抽取，同页分发） attempt=1
+usage_bielefeld,https://www.romanklinger.de/usagecorpus/usage-sentiment-lexicon-de.csv.gz,200,39577,5.46,16924838183ef9859d837947d8bc89561ef88fd481e354bf71147c8e658517b8,2026-11-21T13:15:30Z,德语短语-极性词典（从语料抽取，同页分发） attempt=1

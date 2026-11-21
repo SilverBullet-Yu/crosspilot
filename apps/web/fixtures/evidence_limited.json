@@ -1,0 +1,56 @@
+{
+  "query": "旅行收纳包",
+  "market": "de",
+  "data_mode": "snapshot",
+  "scenario": "demo_limited",
+  "stance": "support",
+  "cards": [
+    {
+      "excerpt": "Der 32-Liter-Beutel fasst wirklich viel, bleibt aber trotzdem schlank und passt in jeden Rucksack oben rein.",
+      "source_url": "https://example.com/demo-review-support-capacity-2",
+      "language": "de",
+      "published_on": "2026-10-05",
+      "level": "L1",
+      "sample_size": 96,
+      "stance": "support",
+      "is_demo_data": true
+    },
+    {
+      "excerpt": "Die durchdachten Fächer sparen mir beim Packen richtig Zeit – ich muss nicht mehr kramen.",
+      "source_url": "https://example.com/demo-review-support-compartments-2",
+      "language": "de",
+      "published_on": "2026-10-18",
+      "level": "L1",
+      "sample_size": null,
+      "stance": "support",
+      "is_demo_data": true
+    },
+    {
+      "excerpt": "Eurostat isoc_ec_ib20, Germany 2025: \"Last online purchase: in the last 3 months\" — All individuals (IND_TOTAL, PC_IND_IU3): 74.44 % of individuals.",
+      "source_url": "https://ec.europa.eu/eurostat/databrowser/view/isoc_ec_ib20/default/table?lang=en",
+      "language": "en",
+      "published_on": "2026-11-20",
+      "level": "L3",
+      "sample_size": null,
+      "stance": "insufficient",
+      "is_demo_data": false
+    }
+  ],
+  "questions": [
+    {
+      "text": "演示样本中的好评者是否集中在休闲旅行场景？商务短差用户的诉求是否未被覆盖？",
+      "source": "基于 L1 演示样本的待验证假设"
+    },
+    {
+      "text": "「隔层省时」的好评能否复现为详情页首屏的量化卖点（如「3 秒找到护照」）？",
+      "source": "基于 L1 演示样本的待验证假设"
+    },
+    {
+      "text": "低价假设目前零 L1 证据——德国消费者是否把耐用性/材料/退换保障置于价格之上？需访谈验证。",
+      "source": "基于 L3 语境推断的待验证假设"
+    }
+  ],
+  "l2_cards": [],
+  "l2_notice": null,
+  "generated_at": "2026-11-20T15:10:22Z"
+}

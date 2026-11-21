@@ -1,0 +1,5 @@
+source,url,http_status,bytes,elapsed_s,sha256,fetched_at_utc,note
+marc,https://hf-mirror.com/datasets/mteb/amazon_reviews_multi/resolve/main/de/test.jsonl,200,1534471,19.73,d8802e7c603a4364ac04d4842bc806f01f045b189bdea386dab79343bff7b40a,2026-11-21T12:48:51Z,"MARC 官方 test 分片镜像（held-out 评测集，5,000 条） attempt=1"
+marc,https://hf-mirror.com/datasets/mteb/amazon_reviews_multi/resolve/main/de/validation.jsonl,200,1528225,62.94,ab2daf8d43a9ab392a91f3230fc0ae7d860212414f0253d03346328301f5bd20,2026-11-21T12:50:47Z,"MARC 官方 validation 分片镜像（held-out 评测集，5,000 条） attempt=3"
+marc,https://hf-mirror.com/datasets/mteb/amazon_reviews_multi/resolve/main/amazon_reviews_multi.py,200,6175,1.35,f7cfdbc98a1df456bd9a70b3b6acd8907da1e756cb5c762ed1c582ab597383c1,2026-11-21T12:50:48Z,上游 datasets 加载脚本：_LICENSE 含 Amazon 学术研究许可原文 attempt=1
+marc,https://hf-mirror.com/api/datasets/mteb/amazon_reviews_multi/tree/main/de,200,510,0.93,c33a05a175b6e2a1189cfeab9612892e625f4598e89f8c908055dfee7f5f25c9,2026-11-21T12:50:49Z,HF API tree 响应：train.jsonl 的 LFS sha256 锚定（train 未下载） attempt=1

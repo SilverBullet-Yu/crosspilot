@@ -1,0 +1,65 @@
+{
+  "generated_at_utc": "2026-11-21T09:30:00Z",
+  "source_api": "https://developer.zhihu.com/api/v1/content/zhihu_search",
+  "is_demo_data": false,
+  "captured_at": "2026-11-18",
+  "captured_via": "zhihu-cli v0.6.3 zhihu_search ×3（当日消耗 3/10 次额度）",
+  "provenance": "research/crosspilot-evidence_dim04.md §4.1（真实采集记录：引文/链接/AuthorityLevel/赞同数/时间戳）；本文件为该记录的转录，摘录与链接逐字保留",
+  "notes": [
+    "原始采集共得 5 条相关片段（A–E）；本文件收录 A/B/D 三条（EditTime 时间戳齐备，可推真实发布日期 2026-11-11 / 2026-10-10 / 2026-07-29）。",
+    "片段 C（ContentID 7617456394347580678）与 E（1824604693299800241）无发布日期元数据，为不以捕获日冒充发布日暂不收录，待凭据重采补齐。",
+    "链接为 API 原样返回；2026-11-21 匿名 curl 实测 403/超时为知乎反爬，浏览器可正常打开。",
+    "片段 D 为中文二手归纳（作者为税务师），按 CONSTRAINTS 第四节仅计「问题来源」，不得作为德国消费者证据（AuthorityLevel=2，本次采集最低档，已在卡面层级体现）。"
+  ],
+  "cards": [
+    {
+      "title": "地平线 8 号轻旅行双肩包值得买吗？用了一个月，说说我的真实感受",
+      "author_anonymous_id": "zh-author:a5d8c291cde8",
+      "excerpt": "「小包塞不下换洗衣服，大容量款一装满就鼓得很臃肿，对接客户的时候观感不太利落」",
+      "source_url": "https://zhuanlan.zhihu.com/p/2103766775741552038",
+      "published_on": "2026-11-11",
+      "level": "L2",
+      "language": "zh-CN",
+      "sample_size": 1,
+      "stance": "insufficient",
+      "is_demo_data": false,
+      "search_term": "旅行收纳包 容量 便携",
+      "authority_level": 4,
+      "vote_up": 9,
+      "comment_count": 5,
+      "content_id": "2103766775741552038"
+    },
+    {
+      "title": "短途旅行不想拖箱子，25-32L 旅行双肩包有哪些实际好用的？",
+      "author_anonymous_id": "zh-author:f4792a16e235",
+      "excerpt": "「基础容量 27L，但可以扩容至 30L……容量已经和 20 寸行李箱差不多」「拉链拉开能 180° 全开口，装衣物时一目了然，再也不用把包倒过来来回翻找」",
+      "source_url": "https://www.zhihu.com/question/2078542020814161898/answer/2092177678551999141",
+      "published_on": "2026-10-10",
+      "level": "L2",
+      "language": "zh-CN",
+      "sample_size": 1,
+      "stance": "insufficient",
+      "is_demo_data": false,
+      "search_term": "旅行收纳包 容量 便携",
+      "authority_level": 4,
+      "vote_up": 8,
+      "content_id": "2092177678551999141"
+    },
+    {
+      "title": "2026 德国跨境电商市场深度分析：蓝海品类、本土入驻与运营指南 | IngStart",
+      "author_anonymous_id": "zh-author:f3b0187adc73",
+      "excerpt": "德国消费者普遍偏好：「简约、功能性设计；环保和可持续材料；清晰的产品参数；透明的价格和运费」「德国消费者普遍理性，决策周期较长，重视产品评价、详细参数、合规标识和退换货政策」「不能只用英语运营德国站；产品说明书需专业德语翻译」",
+      "source_url": "https://zhuanlan.zhihu.com/p/2065725406162974266",
+      "published_on": "2026-07-29",
+      "level": "L2",
+      "language": "zh-CN",
+      "sample_size": 1,
+      "stance": "insufficient",
+      "is_demo_data": false,
+      "search_term": "出海 德国 消费者 产品卖点 差异 文化",
+      "authority_level": 2,
+      "vote_up": 1,
+      "content_id": "2065725406162974266"
+    }
+  ]
+}

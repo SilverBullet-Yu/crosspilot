@@ -1,0 +1,59 @@
+{
+  "window_start": "2021-01-01",
+  "window_end": "2026-12-31",
+  "source": "marc",
+  "tier": "benchmark",
+  "license": "research-only",
+  "requires_credential": false,
+  "corpus_type": "benchmark",
+  "time_coverage_applicable": false,
+  "time_coverage_note": "基准语料是静态标注集（官方描述采集期 2015-11-01 至 2019-11-01，无逐条日期字段），不存在时间发布节奏，时间覆盖密度校验（validate_coverage.py）不适用；未列入其 TABLES 配置即为本机制的声明方式，非为绿灯造假",
+  "main_table": "marc_reviews_de_10000.csv",
+  "rows": 10000,
+  "per_split": {
+    "test": 5000,
+    "validation": 5000
+  },
+  "stars_distribution": {
+    "1": 2000,
+    "2": 2000,
+    "3": 2000,
+    "4": 2000,
+    "5": 2000
+  },
+  "gold_stance_distribution": {
+    "insufficient": 2000,
+    "oppose": 4000,
+    "support": 4000
+  },
+  "gold_stance_rule": "label 0-4 = 星级 1-5（官方每星级 20% 均衡设计与实测分布内证）；stars 4-5 -> support、1-2 -> oppose、3 -> insufficient（中评方向不可判定，与 GERestaurant 混合评价口径一致）",
+  "data_origin": {
+    "hf_mirror_dataset": "https://hf-mirror.com/datasets/mteb/amazon_reviews_multi",
+    "hf_official_dataset": "https://huggingface.co/datasets/amazon/amazon_reviews_multi（已下架，hf-mirror 实测 404）",
+    "official_homepage": "https://registry.opendata.aws/amazon-reviews-ml/",
+    "mirror_note": "官方 HF 仓库因 Amazon 要求下架；GitHub 无独立官方数据仓库；raw.githubusercontent.com / codeload.github.com 实测不可达；mteb/amazon_reviews_multi 是 MTEB Classification 任务重构镜像（字段 id/text/label/label_text，product_category/product_id/reviewer_id 独立字段丢失，text 含标题+正文）",
+    "train_anchor": "c2fc225b5b2e196e9fa2558a252b6a665b7bc0c50a4ea90d56e5de7cf2b82a46 (61424547 bytes)"
+  },
+  "splits_downloaded": [
+    "test",
+    "validation"
+  ],
+  "splits_skipped": {
+    "train": "de/train.jsonl（61.4MB LFS，201,197 条）未下载：规则立场基线零参数不训练，train 无评测用途；URL 与 LFS sha256 已锚定（data_origin.train_anchor），需要时可凭 provenance 复现"
+  },
+  "extracted_files": [
+    "raw/de_test_5000.jsonl",
+    "raw/de_validation_5000.jsonl",
+    "raw/upstream_load_script.py",
+    "raw/hf_api_tree_de.json"
+  ],
+  "coverage_complete": true,
+  "coverage_note": "指数据文件完整性：test 与 validation 两分片完整下载（各 5,000 条，与官方每语言 dev/test 5,000 条的设计一致）；train 分片未下载（见 splits_skipped），非时间覆盖声明",
+  "pii_scrubbed": [
+    "email",
+    "phone"
+  ],
+  "pii_scrub_scope": "主表 text 列；raw/ 保留上游原件（不入库）",
+  "license_note": "Amazon 学术研究许可：禁转售/重发布/商用（含商业研究），禁与个人身份关联；原文见 raw/upstream_load_script.py 的 _LICENSE；硬约束 2：商业化路径启动即下线，基准语料不进证据卡",
+  "domain_caveat": "商品域（Amazon.de 等 marketplace 的德语商品评论），只作立场基线评测，不进证据卡；research-only，商业化启动即下线"
+}

@@ -1,0 +1,150 @@
+{
+  "window_start": "2021-01-01",
+  "window_end": "2026-12-31",
+  "source": "eu_comext",
+  "tier": "L3",
+  "license": "Eurostat open data",
+  "requires_credential": false,
+  "dataset": {
+    "code": "DS-045409",
+    "label": "EU trade since 1988 by HS2-4-6 and CN8",
+    "updated": "2026-11-13T11:00:00+0100",
+    "api_base": "https://ec.europa.eu/eurostat/api/comext/dissemination/statistics/1.0/data"
+  },
+  "reporter": "DE",
+  "partner": "CN",
+  "flow": {
+    "code": "1",
+    "label": "IMPORT"
+  },
+  "products": [
+    "4202",
+    "420211",
+    "420212",
+    "420219",
+    "420221",
+    "420222",
+    "420229",
+    "420231",
+    "420232",
+    "420239",
+    "420291",
+    "420292",
+    "420299"
+  ],
+  "rows_total": 1924,
+  "rows_annual": 130,
+  "rows_monthly": 1794,
+  "coverage": {
+    "granularity": "年度为主 + 月度补充",
+    "annual_years_present": [
+      2021,
+      2022,
+      2023,
+      2024,
+      2025
+    ],
+    "annual_2026_published": false,
+    "annual_2026_note": "Comext 年度 2026 在抓取日（2026-11-21）尚未发布，非抓取失败",
+    "monthly_first": "2021-01",
+    "monthly_last": "2026-09",
+    "monthly_period_count": 69,
+    "monthly_2026_incomplete": true,
+    "monthly_2026_note": "Comext 月度约滞后两个月，2026 仅到最新已发布月份，为不完整年"
+  },
+  "cn8_detail_via_api": false,
+  "cn8_detail_note": "API product 维度只到 HS6；CN8 八位子目经 SDMX 端点实测报 INVALID_QUERY_DIMENSION_VALUE(PRODUCT=42021100)，细目只能走 comext/COMEXT_DATA/PRODUCTS/ 的 bulk 7z（本切片不取）",
+  "truncation": {
+    "truncated_windows": [],
+    "note": "API 按过滤条件返回全量观测，无分页上限；观测缺席（如零贸易月）为源端事实，非截断"
+  },
+  "indicators_present": [
+    "QUANTITY_IN_100KG",
+    "VALUE_IN_EUROS"
+  ],
+  "obs_by_product_freq": {
+    "4202_A": {
+      "A": 10
+    },
+    "420211_A": {
+      "A": 10
+    },
+    "420212_A": {
+      "A": 10
+    },
+    "420219_A": {
+      "A": 10
+    },
+    "420221_A": {
+      "A": 10
+    },
+    "420222_A": {
+      "A": 10
+    },
+    "420229_A": {
+      "A": 10
+    },
+    "420231_A": {
+      "A": 10
+    },
+    "420232_A": {
+      "A": 10
+    },
+    "420239_A": {
+      "A": 10
+    },
+    "420291_A": {
+      "A": 10
+    },
+    "420292_A": {
+      "A": 10
+    },
+    "420299_A": {
+      "A": 10
+    },
+    "4202_M": {
+      "M": 138
+    },
+    "420211_M": {
+      "M": 138
+    },
+    "420212_M": {
+      "M": 138
+    },
+    "420219_M": {
+      "M": 138
+    },
+    "420221_M": {
+      "M": 138
+    },
+    "420222_M": {
+      "M": 138
+    },
+    "420229_M": {
+      "M": 138
+    },
+    "420231_M": {
+      "M": 138
+    },
+    "420232_M": {
+      "M": 138
+    },
+    "420239_M": {
+      "M": 138
+    },
+    "420291_M": {
+      "M": 138
+    },
+    "420292_M": {
+      "M": 138
+    },
+    "420299_M": {
+      "M": 138
+    }
+  },
+  "raw_files_expected": 26,
+  "raw_files_parsed": 26,
+  "raw_missing": [],
+  "coverage_complete": true,
+  "fetched_at_utc": "2026-11-21T12:51:15Z"
+}

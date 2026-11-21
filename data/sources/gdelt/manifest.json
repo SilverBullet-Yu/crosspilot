@@ -1,0 +1,51 @@
+{
+  "window_start": "2021-01-01",
+  "window_end": "2026-12-31",
+  "source": "gdelt_doc",
+  "tier": "L3",
+  "license": "unrestricted use with attribution",
+  "requires_credential": false,
+  "citation_required": "Source: The GDELT Project (https://www.gdeltproject.org/)",
+  "page_limit": 250,
+  "window_granularity": "half-year",
+  "content_scope": "仅标题与链接，不含正文",
+  "queries": {
+    "de_luggage_de_lang": {
+      "query": "Koffer sourcelang:german",
+      "windows_retrieved": [
+        "2021H2",
+        "2022H2"
+      ]
+    },
+    "en_luggage_de_src": {
+      "query": "luggage sourcecountry:GM",
+      "windows_retrieved": [
+        "2021H1",
+        "2021H2",
+        "2022H1",
+        "2022H2"
+      ]
+    }
+  },
+  "windows_expected_per_query": 12,
+  "rows_total": 1090,
+  "truncated_windows": [
+    "en_luggage_de_src/2021H1",
+    "en_luggage_de_src/2021H2",
+    "en_luggage_de_src/2022H1",
+    "en_luggage_de_src/2022H2"
+  ],
+  "coverage_complete": false,
+  "coverage_note": "GDELT 限速导致多数半年窗未取回，详见 README",
+  "time_coverage_sparse": true,
+  "time_coverage_note": "sort=datedesc + maxrecords=250 使每窗只取到窗口末端的 250 条。en_luggage_de_src 四窗共 1000 条，实际仅覆盖 33 天 / 730 天（4.5%）。行数充足不等于时间覆盖充足，禁止用于任何跨时间比较或趋势结论。",
+  "window_actual_day_spans": {
+    "de_luggage_de_lang/2021H2": 84,
+    "de_luggage_de_lang/2022H2": 88,
+    "en_luggage_de_src/2021H1": 8,
+    "en_luggage_de_src/2021H2": 11,
+    "en_luggage_de_src/2022H1": 3,
+    "en_luggage_de_src/2022H2": 11
+  },
+  "rebuilt_from_raw": true
+}

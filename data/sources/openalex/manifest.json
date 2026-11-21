@@ -1,0 +1,41 @@
+{
+  "window_start": "2021-01-01",
+  "window_end": "2026-12-31",
+  "source": "openalex",
+  "tier": "L3",
+  "license": "open",
+  "requires_credential": false,
+  "page_limit": 100,
+  "per_page": 100,
+  "max_pages": 5,
+  "mailto_sent": false,
+  "mailto_note": "polite pool 自 2026-02 废弃，mailto 被忽略，故不发送",
+  "topics": {
+    "cross_cultural_consumer_perception": {
+      "query": "cross-cultural consumer perception",
+      "api_total_in_window": 248012,
+      "rows_kept": 500
+    },
+    "aspect_based_sentiment_analysis": {
+      "query": "aspect-based sentiment analysis",
+      "api_total_in_window": 340543,
+      "rows_kept": 500
+    },
+    "german_ecommerce_consumer_behaviour": {
+      "query": "German e-commerce consumer behaviour",
+      "api_total_in_window": 28413,
+      "rows_kept": 496
+    },
+    "cross_border_ecommerce_trust": {
+      "query": "cross-border e-commerce consumer trust",
+      "api_total_in_window": 32440,
+      "rows_kept": 460
+    },
+    "product_review_helpfulness": {
+      "query": "online product review helpfulness",
+      "api_total_in_window": 374707,
+      "rows_kept": 499
+    }
+  },
+  "rows_total": 2455
+}

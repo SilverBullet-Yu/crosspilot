@@ -1,0 +1,64 @@
+{
+  "window_start": "2021-01-01",
+  "window_end": "2026-12-31",
+  "source": "gerestaurant",
+  "tier": "benchmark",
+  "license": "CC-BY-4.0",
+  "requires_credential": false,
+  "corpus_type": "benchmark",
+  "time_coverage_applicable": false,
+  "time_coverage_note": "基准语料是静态标注集（3,078 条餐厅评论，无发布日期字段），不存在时间发布节奏，时间覆盖密度校验（validate_coverage.py）不适用；未列入其 TABLES 配置即为本机制的声明方式，非为绿灯造假",
+  "main_table": "gerestaurant_reviews_3078.csv",
+  "rows": 3078,
+  "aspect_distribution": {
+    "AMBIENCE": 485,
+    "FOOD": 1712,
+    "GENERAL-IMPRESSION": 776,
+    "PRICE": 255,
+    "SERVICE": 1086
+  },
+  "polarity_distribution": {
+    "AMBIENCE=NEGATIVE": 141,
+    "AMBIENCE=NEUTRAL": 6,
+    "AMBIENCE=POSITIVE": 338,
+    "FOOD=NEGATIVE": 630,
+    "FOOD=NEUTRAL": 119,
+    "FOOD=POSITIVE": 963,
+    "GENERAL-IMPRESSION=NEGATIVE": 341,
+    "GENERAL-IMPRESSION=NEUTRAL": 26,
+    "GENERAL-IMPRESSION=POSITIVE": 409,
+    "PRICE=NEGATIVE": 190,
+    "PRICE=NEUTRAL": 19,
+    "PRICE=POSITIVE": 46,
+    "SERVICE=NEGATIVE": 493,
+    "SERVICE=NEUTRAL": 10,
+    "SERVICE=POSITIVE": 583
+  },
+  "gold_stance_distribution": {
+    "insufficient": 247,
+    "oppose": 1323,
+    "support": 1508
+  },
+  "gold_stance_rule": "GENERAL-IMPRESSION 极性优先且冲突即 insufficient；无 GI 则全体aspect 极性一致才映射，混合极性 insufficient；无标签 insufficient",
+  "data_origin": {
+    "upstream_repo": "https://github.com/NilsHellwig/GERestaurant",
+    "data_repo": "https://github.com/kartik-gadhvi/GERestaurant",
+    "data_repo_commit_date": "2024-09-13",
+    "reason": "上游 .gitignore 排除 data/*_dataset.json，作者经 HuggingFace 分发而本机 HF 不可达；fork init 提交与 KONVENS 2024 论文发表同期"
+  },
+  "extracted_files": [
+    "raw/dataset_filtered.json",
+    "raw/upstream_README.md",
+    "raw/upstream_gitignore.txt",
+    "raw/annotation_guideline.pdf"
+  ],
+  "coverage_complete": true,
+  "coverage_note": "指数据文件完整性：上游分发的 dataset_filtered.json 单文件完整下载（3,078/3,078 条），非时间覆盖声明",
+  "pii_scrubbed": [
+    "email",
+    "phone"
+  ],
+  "pii_scrub_scope": "主表 text 列；raw/ 保留原文（不入库）",
+  "license_note": "上游仓库无 LICENSE 文件；CC-BY-4.0 依 REGISTRY 既有登记与底层Google Maps 评论内容的 CC BY 4.0 条款，商用须署名（引用论文）",
+  "domain_caveat": "餐厅域，不可外推为商品域；只作基线评测，不进证据卡"
+}

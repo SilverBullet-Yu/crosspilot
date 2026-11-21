@@ -1,0 +1,45 @@
+<script setup lang="ts">
+/**
+ * 证据卡 —— 渲染六必现字段（packages/contracts/evidence-card.schema.json）：
+ *   excerpt 原文摘录 / source_url 来源链接（新窗口打开）/ language 语言徽标 /
+ *   published_on 发布日期 / level 证据层级徽标（L1/L2/L3 不同底色）/ sample_size 样本量。
+ * sample_size 为 null 时必须显示「样本量未知·有偏差风险」标注。
+ * is_demo_data=true 时整卡加「演示数据」斜纹边框 + 角标（CONSTRAINTS 第四节 合规标识）。
+ */
+import type { ValidEvidenceCard } from "../utils/evidence-schema"
+
+defineProps<{ card: ValidEvidenceCard }>()
+
+const levelLabel: Record<string, string> = {
+  L1: "L1 一手反馈",
+  L2: "L2 二手转述",
+  L3: "L3 宏观语境",
+}
+</script>
+
+<template>
+  <article class="card" :class="{ 'card--demo': card.is_demo_data }">
+    <span v-if="card.is_demo_data" class="card__ribbon">演示数据</span>
+    <p class="card__excerpt">{{ card.excerpt }}</p>
+    <div class="card__meta">
+      <span class="badge badge--level" :class="`badge--${card.level}`" :title="`证据层级 ${card.level}`">
+        {{ levelLabel[card.level] || card.level }}
+      </span>
+      <span class="badge badge--lang">{{ card.language }}</span>
+      <span class="badge badge--date">{{ card.published_on }}</span>
+      <span
+        class="badge"
+        :class="card.sample_size === null ? 'badge--sizewarn' : 'badge--size'"
+      >
+        {{ card.sample_size === null ? "样本量未知·有偏差风险" : `样本量 n=${card.sample_size}` }}
+      </span>
+    </div>
+    <a class="card__source" :href="card.source_url" target="_blank" rel="noopener noreferrer">
+      来源链接（新窗口打开）↗
+    </a>
+    <p class="card__url">{{ card.source_url }}</p>
+    <p v-if="card.is_demo_data" class="card__demo-note">
+      演示数据：模拟回填，非真实德国消费者反馈；不与真实反馈同组混排（赛事合规，CONSTRAINTS 第四节）。
+    </p>
+  </article>
+</template>

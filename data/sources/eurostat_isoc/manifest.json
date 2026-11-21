@@ -1,0 +1,29 @@
+{
+  "window_start": "2021-01-01",
+  "window_end": "2026-12-31",
+  "source": "eurostat",
+  "tier": "L3",
+  "license": "Eurostat open data",
+  "requires_credential": false,
+  "datasets": {
+    "isoc_ec_ib20": {
+      "updated": "2026-04-17T11:00:00+0200",
+      "label": "Internet purchases by individuals (2020 onwards)",
+      "years_kept": [
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "obs_total": 15957
+    },
+    "isoc_ec_ibuy": {
+      "updated": "2024-06-16T23:00:00+0200",
+      "label": "Internet purchases by individuals (2002-2019)",
+      "years_kept": [],
+      "obs_total": 106294
+    }
+  },
+  "rows_in_window": 13093
+}

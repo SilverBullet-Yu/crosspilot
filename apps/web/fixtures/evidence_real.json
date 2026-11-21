@@ -1,0 +1,87 @@
+{
+  "query": "旅行收纳包",
+  "market": "de",
+  "data_mode": "snapshot",
+  "scenario": "real",
+  "stance": "insufficient",
+  "cards": [
+    {
+      "excerpt": "Backpack \"Rucksack Challenge\" (JAKO), case SR/00988/26: The product contains perfluorocarboxylic acid related compounds (PFCAs) and an excessive quantity of perfluorooctanoic-acid-related compounds (PFOAs) (measured values: 1094.6 mg/kg and 548.2 mg/kg, respectively). PFCAs and PFOAs bio-accumulate in wildlife, posing a risk to the environment. The product does not comply with the Persistent Organic Pollutants (POPs) Regulation.",
+      "source_url": "https://ec.europa.eu/safety-gate-alerts/api/download/weeklyReport/detail/xml/10000300?language=en&search=WEB_REPORT%7C:%7C10000300",
+      "language": "en",
+      "published_on": "2026-04-10",
+      "level": "L3",
+      "sample_size": null,
+      "stance": "insufficient",
+      "is_demo_data": false
+    },
+    {
+      "excerpt": "Soft toy with backpack straps, case SR/00281/26: The straps of the backpack are too long and have no break-off point. They may wrap around the neck of a child and lead to strangulation. The product does not comply with the requirements of the Toy Safety Directive nor with the European standard EN 71-1.",
+      "source_url": "https://ec.europa.eu/safety-gate-alerts/api/download/weeklyReport/detail/xml/10000244?language=en&search=WEB_REPORT%7C:%7C10000244",
+      "language": "en",
+      "published_on": "2026-02-06",
+      "level": "L3",
+      "sample_size": null,
+      "stance": "insufficient",
+      "is_demo_data": false
+    },
+    {
+      "excerpt": "Eurostat isoc_ec_ib20, Germany 2025: \"Last online purchase: in the last 3 months\" — All individuals (IND_TOTAL, PC_IND_IU3): 74.44 % of individuals.",
+      "source_url": "https://ec.europa.eu/eurostat/databrowser/view/isoc_ec_ib20/default/table?lang=en",
+      "language": "en",
+      "published_on": "2026-11-20",
+      "level": "L3",
+      "sample_size": null,
+      "stance": "insufficient",
+      "is_demo_data": false
+    }
+  ],
+  "l2_cards": [
+    {
+      "excerpt": "「小包塞不下换洗衣服，大容量款一装满就鼓得很臃肿，对接客户的时候观感不太利落」",
+      "source_url": "https://zhuanlan.zhihu.com/p/2103766775741552038",
+      "language": "zh-CN",
+      "published_on": "2026-11-11",
+      "level": "L2",
+      "sample_size": 1,
+      "stance": "insufficient",
+      "is_demo_data": false
+    },
+    {
+      "excerpt": "「基础容量 27L，但可以扩容至 30L……容量已经和 20 寸行李箱差不多」「拉链拉开能 180° 全开口，装衣物时一目了然，再也不用把包倒过来来回翻找」",
+      "source_url": "https://www.zhihu.com/question/2078542020814161898/answer/2092177678551999141",
+      "language": "zh-CN",
+      "published_on": "2026-10-10",
+      "level": "L2",
+      "sample_size": 1,
+      "stance": "insufficient",
+      "is_demo_data": false
+    },
+    {
+      "excerpt": "德国消费者普遍偏好：「简约、功能性设计；环保和可持续材料；清晰的产品参数；透明的价格和运费」「德国消费者普遍理性，决策周期较长，重视产品评价、详细参数、合规标识和退换货政策」「不能只用英语运营德国站；产品说明书需专业德语翻译」",
+      "source_url": "https://zhuanlan.zhihu.com/p/2065725406162974266",
+      "language": "zh-CN",
+      "published_on": "2026-07-29",
+      "level": "L2",
+      "sample_size": 1,
+      "stance": "insufficient",
+      "is_demo_data": false
+    }
+  ],
+  "l2_notice": null,
+  "questions": [
+    {
+      "text": "德国站详情页首屏该放的是精确的尺寸/容量参数（如 31L）与机舱尺寸适配标识，还是「大容量」这类形容性卖点？",
+      "source": "基于 L3 监管与市场语境推断"
+    },
+    {
+      "text": "Safety Gate 近邻品类 2021–2026 召回原因中，材料合规（POPs/REACH）与结构安全（长背带、小零件）哪类更高频？详情页是否需要合规标识背书？",
+      "source": "基于 L3 监管信号推断"
+    },
+    {
+      "text": "德国网民 2025 年 74.4% 在近三个月内有过线上购买——旅行收纳包是否高度依赖线上比价，低价因此成为首屏核心卖点？",
+      "source": "基于 L3 宏观统计推断"
+    }
+  ],
+  "generated_at": "2026-11-20T15:10:22Z"
+}

@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "EvidenceCard",
+  "description": "前后端共享契约。六个必现字段缺一不可，缺失则前端不得渲染该卡。",
+  "type": "object",
+  "required": ["excerpt", "source_url", "language", "published_on", "level", "sample_size"],
+  "properties": {
+    "excerpt": { "type": "string", "minLength": 1, "description": "原文摘录，可追溯" },
+    "source_url": { "type": "string", "format": "uri", "description": "必须可真实打开" },
+    "language": { "type": "string", "description": "BCP-47，如 de / zh-CN" },
+    "published_on": { "type": "string", "format": "date" },
+    "level": { "enum": ["L1", "L2", "L3"], "description": "L2/L3 不得单独支撑偏好结论" },
+    "sample_size": { "type": ["integer", "null"], "description": "null 须在卡面标注偏差" },
+    "stance": { "enum": ["support", "oppose", "insufficient"] },
+    "is_demo_data": { "type": "boolean", "default": false, "description": "true 时必须显式标识「演示数据」，不与真实反馈同卡混排" }
+  },
+  "additionalProperties": false
+}

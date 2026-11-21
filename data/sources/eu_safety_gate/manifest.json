@@ -1,0 +1,27 @@
+{
+  "window_start": "2021-01-01",
+  "window_end": "2026-12-31",
+  "source": "eu_safety_gate",
+  "tier": "L3",
+  "license": "CC0-1.0",
+  "requires_credential": false,
+  "reports_in_window": 302,
+  "reports_fetched": 302,
+  "reports_missing": 0,
+  "coverage_complete": true,
+  "rows_before_dedup": 3255,
+  "de_rows": 3255,
+  "years_covered": [
+    "2021",
+    "2022",
+    "2023",
+    "2024",
+    "2025",
+    "2026"
+  ],
+  "pii_scrubbed": [
+    "email",
+    "phone"
+  ],
+  "rebuilt_from_raw": true
+}

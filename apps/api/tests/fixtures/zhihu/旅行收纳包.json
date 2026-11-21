@@ -1,0 +1,44 @@
+{
+  "generated_at_utc": "2026-11-21T00:00:00Z",
+  "source_api": "https://developer.zhihu.com/api/v1/content/zhihu_search",
+  "is_demo_data": true,
+  "demo_note": "本文件全部为演示撰写（docs/CONSTRAINTS.md 第四节）：卡面摘录模拟知乎从业者讨论方向，并非任何真实页面的原文摘录；source_url 统一指向知乎站内搜索入口页（真实可点开），不冒充具体内容页。正式路演前必须用 scripts/capture_zhihu_snapshot.py 以真实凭据预跑替换本文件，并在路演中主动说明数据截止时间（ADR-0002 后果节）。",
+  "cards": [
+    {
+      "title": "（演示撰写）旅行收纳包出海德国站，选品要注意什么？",
+      "author_anonymous_id": "zh-author:demo00000001",
+      "excerpt": "（演示撰写）跨境收纳品类讨论中常见的从业者观察方向：德国买家普遍重视清晰的产品参数与尺寸规格标注，决策周期偏长，倾向理性比较多款商品而非冲动下单。此摘录为演示数据，仅用于生成待验证问题，需 L1 一手评论复核，不得据此声称德国市场偏好。",
+      "source_url": "https://www.zhihu.com/search?type=content&q=%E6%97%85%E8%A1%8C%E6%94%B6%E7%BA%B3%E5%8C%85",
+      "published_on": "2026-09-12",
+      "level": "L2",
+      "language": "zh-CN",
+      "sample_size": 1,
+      "stance": "insufficient",
+      "is_demo_data": true
+    },
+    {
+      "title": "（演示撰写）收纳用品做欧洲市场有哪些合规坑？",
+      "author_anonymous_id": "zh-author:demo00000002",
+      "excerpt": "（演示撰写）从业者讨论中常见的合规提醒方向：织物类收纳用品进入欧盟需关注 REACH 化学物质限制与标签合规，包装与说明书需本地化。此摘录为演示数据，仅用于生成待验证问题，欧盟合规要求以官方发布为准，不得作为偏好结论依据。",
+      "source_url": "https://www.zhihu.com/search?type=content&q=%E6%97%85%E8%A1%8C%E6%94%B6%E7%BA%B3%E5%8C%85",
+      "published_on": "2026-08-30",
+      "level": "L2",
+      "language": "zh-CN",
+      "sample_size": 1,
+      "stance": "insufficient",
+      "is_demo_data": true
+    },
+    {
+      "title": "（演示撰写）做亚马逊德国站的收纳类目选品思路",
+      "author_anonymous_id": "zh-author:demo00000003",
+      "excerpt": "（演示撰写）从业者经验分享中常见的讨论维度：收纳类目在德国站竞争集中于中低价位带，套装组合与颜色分类是常见差异化方向。此摘录为演示数据，仅用于生成待验证问题，价格与竞争格局需以平台实时数据复核，不得直接写入对照矩阵。",
+      "source_url": "https://www.zhihu.com/search?type=content&q=%E6%97%85%E8%A1%8C%E6%94%B6%E7%BA%B3%E5%8C%85",
+      "published_on": "2026-07-18",
+      "level": "L2",
+      "language": "zh-CN",
+      "sample_size": 1,
+      "stance": "insufficient",
+      "is_demo_data": true
+    }
+  ]
+}

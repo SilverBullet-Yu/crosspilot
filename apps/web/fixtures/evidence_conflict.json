@@ -1,0 +1,76 @@
+{
+  "query": "旅行收纳包",
+  "market": "de",
+  "data_mode": "snapshot",
+  "scenario": "demo_conflict",
+  "stance": "oppose",
+  "cards": [
+    {
+      "excerpt": "Mit 32 Litern passt bei mir deutlich mehr hinein als in meinen alten Kulturbeutel – für zwei Wochen Urlaub genau richtig.",
+      "source_url": "https://example.com/demo-review-support-capacity",
+      "language": "de",
+      "published_on": "2026-08-14",
+      "level": "L1",
+      "sample_size": 128,
+      "stance": "support",
+      "is_demo_data": true
+    },
+    {
+      "excerpt": "Sobald der Beutel voll gepackt ist, ist er so sperrig, dass er nicht mehr ins Handgepäckfach passt. Für mich ist das Volumen zu groß.",
+      "source_url": "https://example.com/demo-review-oppose-capacity",
+      "language": "de",
+      "published_on": "2026-09-02",
+      "level": "L1",
+      "sample_size": 215,
+      "stance": "oppose",
+      "is_demo_data": true
+    },
+    {
+      "excerpt": "Die vielen Fächer sind super durchdacht – jedes Kabel und jeder Kosmetikartikel hat seinen eigenen Platz.",
+      "source_url": "https://example.com/demo-review-support-compartments",
+      "language": "de",
+      "published_on": "2026-07-30",
+      "level": "L1",
+      "sample_size": null,
+      "stance": "support",
+      "is_demo_data": true
+    },
+    {
+      "excerpt": "Zu viele Unterteilungen – ich vergesse ständig, in welchem Fach was liegt, und der Beutel wird unnötig schwer.",
+      "source_url": "https://example.com/demo-review-oppose-compartments",
+      "language": "de",
+      "published_on": "2026-09-21",
+      "level": "L1",
+      "sample_size": null,
+      "stance": "oppose",
+      "is_demo_data": true
+    },
+    {
+      "excerpt": "Backpack \"Rucksack Challenge\" (JAKO), case SR/00988/26: The product contains perfluorocarboxylic acid related compounds (PFCAs) and an excessive quantity of perfluorooctanoic-acid-related compounds (PFOAs). The product does not comply with the Persistent Organic Pollutants (POPs) Regulation.",
+      "source_url": "https://ec.europa.eu/safety-gate-alerts/api/download/weeklyReport/detail/xml/10000300?language=en&search=WEB_REPORT%7C:%7C10000300",
+      "language": "en",
+      "published_on": "2026-04-10",
+      "level": "L3",
+      "sample_size": null,
+      "stance": "insufficient",
+      "is_demo_data": false
+    }
+  ],
+  "questions": [
+    {
+      "text": "支持与反对的德国评论分别来自什么使用场景（长途度假 vs 短途商务）？冲突是否由场景差异导致，而非偏好本身矛盾？",
+      "source": "由 L1 冲突证据派生的待验证假设"
+    },
+    {
+      "text": "装满后超出常用手提行李尺寸的具体比例是多少？是否值得做「可扩展容量」设计并作为首屏量化参数？",
+      "source": "由 L1 冲突证据派生的待验证假设"
+    },
+    {
+      "text": "多隔层的负面反馈是否集中在「忘记物品位置」？是否需要「标签分区/透明窗」设计做访谈验证？",
+      "source": "由 L1 冲突证据派生的待验证假设"
+    }
+  ],
+  "l2_cards": [],
+  "l2_notice": null,
+  "generated_at": "2026-11-20T15:10:22Z"
+}

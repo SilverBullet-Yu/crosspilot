@@ -1,0 +1,93 @@
+{
+  "window_start": "2021-01-01",
+  "window_end": "2026-12-31",
+  "source": "usage_bielefeld",
+  "tier": "benchmark",
+  "license": "ODC-By-1.0",
+  "requires_credential": false,
+  "corpus_type": "benchmark",
+  "time_coverage_applicable": false,
+  "time_coverage_note": "基准语料是静态标注集（LREC 2014 发布，622 英 + 611 德条 Amazon 评论标注，无发布日期字段），不存在时间发布节奏，时间覆盖密度校验（validate_coverage.py）不适用；未列入其 TABLES 配置即为本机制的声明方式，非为绿灯造假",
+  "main_table": "usage_annotations_25292.csv",
+  "rows": 25292,
+  "main_table_scope": "标注者 a1（IGGSA 共享任务金标同款口径）；a2 标注完整保留在 raw 语料包，规模见 annotator2_counts",
+  "reviews_table": "usage_reviews_1233.csv",
+  "reviews_rows": 1233,
+  "corpus_version": "1.0.2",
+  "paper": "Klinger & Cimiano, The USAGE review corpus for fine-grained, multi-lingual opinion analysis, LREC 2014",
+  "lang_review_distribution": {
+    "de": 611,
+    "en": 622
+  },
+  "category_review_distribution": {
+    "de:coffeemachine": 108,
+    "de:cutlery": 72,
+    "de:microwave": 100,
+    "de:toaster": 4,
+    "de:trashcan": 99,
+    "de:vacuum": 140,
+    "de:washer": 88,
+    "en:coffeemachine": 75,
+    "en:cutlery": 49,
+    "en:dishwasher": 98,
+    "en:microwave": 100,
+    "en:toaster": 100,
+    "en:trashcan": 100,
+    "en:vacuum": 51,
+    "en:washer": 49
+  },
+  "span_type_distribution": {
+    "aspect": 14885,
+    "subjective": 10407
+  },
+  "subjective_polarity_distribution": {
+    "negative": 2893,
+    "neutral": 240,
+    "positive": 7266,
+    "unknown": 8
+  },
+  "relation_counts": {
+    "TARG-SUBJ": 8566,
+    "COREF": 104
+  },
+  "multi_target_subjective": 503,
+  "annotator2_counts": {
+    "annotations": 22062,
+    "aspect": 11664,
+    "subjective": 10398,
+    "relations": 10509
+  },
+  "gold_stance_distribution": {
+    "insufficient": 616,
+    "oppose": 79,
+    "support": 538
+  },
+  "gold_stance_rule": "评论内全部 subjective 极性集合唯一且为 positive/negative 才映射（positive→support、negative→oppose）；正负混合=证据冲突、仅中性/unknown、无标注一律 insufficient。USAGE 无总体印象标签，混合评价占比高（insufficient 50.0%）是该口径的结构性结果",
+  "offset_semantics": "字符偏移：end-start 与 span 词面字符长全量一致（47354/47354 含 a2），与 UTF-8 字节长不一致 4114 处，排除字节偏移语义",
+  "data_origin": {
+    "release_page": "https://www.romanklinger.de/usagecorpus/",
+    "corpus_url": "https://www.romanklinger.de/usagecorpus/USAGE-corpus-1.0.2.tar.gz",
+    "paper_pdf": "https://www.lrec-conf.org/proceedings/lrec2014/pdf/85_Paper.pdf",
+    "original_hosting": "https://toolkit.cit-ec.uni-bielefeld.de/datasets/usage-review-corpus-fine-grained-multi-lingual-opinion-analysis",
+    "reason": "官方发布页由作者 Roman Klinger（语料制作时属比勒费尔德大学）维护，v1.0.2 为最新公开版本（2015-07 更新 readme）"
+  },
+  "extracted_files": [
+    "raw/corpus_readme.pdf",
+    "raw/annotation_guidelines.pdf",
+    "raw/lrec2014_paper_preprint.pdf",
+    "raw/crawler_readme.txt"
+  ],
+  "coverage_complete": true,
+  "coverage_note": "指数据文件完整性：官方 tar.gz 单包完整下载（gzip CRC 校验 + 规模断言 622/611、25292 标注、8566+104 关系全部通过），非时间覆盖声明",
+  "pii_scrubbed": [
+    "email"
+  ],
+  "pii_scan": {
+    "email_hits_scrubbed": 0,
+    "phone_hits_kept": 4,
+    "phone_note": "命中均为商品型号/厂商号码词面（标注 span 原文），不清洗"
+  },
+  "pii_scrub_scope": "语料不含评论全文，主表只有 span 词面；email 扫描命中即清洗，phone 只计数不清洗（见 pii_scan.phone_note）；raw/ 保留未清洗原件",
+  "license_note": "发布页声明 The data is available under the Open Data Commons Attribute License (ODB-By) v1.0（快照见 raw/usagecorpus_release_page.html）；REGISTRY 登记保持 community-free/不可商用保守口径未放宽——作者同时声明勿再分发 Amazon 评论原文、含文本版不公开（本语料不含文本，不受该限制约束）",
+  "domain_caveat": "商品域（家电/百货 8 类）；公开版不含评论文本（版权限制），规则立场基线（需全文输入）无法在其上评测，只作 span 级标注基准，不进证据卡"
+}

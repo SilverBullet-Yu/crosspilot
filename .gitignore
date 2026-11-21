@@ -1,0 +1,37 @@
+# 密钥与本地配置
+.env
+.env.local
+*.key
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.egg-info/
+
+# Node / Nuxt
+node_modules/
+.nuxt/
+.output/
+dist/
+
+# 数据：快照与夹具入库，原始大文件不入库
+data/raw/
+data/snapshots/*.parquet
+!data/snapshots/.gitkeep
+!data/fixtures/
+
+# 数据区：主表 / README / manifest / provenance 入库，原始响应不入库。
+# 原始响应可凭 provenance.csv 的 sha256 与 URL 复现，见 data/sources/README.md。
+data/sources/*/raw/
+
+# 系统
+.DS_Store
+Thumbs.db
+
+# 许可禁再发布的数据本体：MARC（Amazon 学术研究许可：禁转售、禁再发布、禁商业使用）。
+# 公开仓库不得包含该数据；本地文件保留供评测，凭 data/sources/_scripts/fetch_marc.py 复现。
+data/sources/marc/*.csv

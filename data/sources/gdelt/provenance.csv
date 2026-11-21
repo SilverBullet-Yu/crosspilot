@@ -1,0 +1,7 @@
+source,raw_file,http_status,bytes,elapsed_s,sha256,fetched_at_utc,note
+gdelt,de_luggage_de_lang_2021H2.json,FROM_RAW,22765,,d939f1794d34261b5b73896166277b77534fc7bf29595dc08238ccb4c8b39924,2026-11-20T15:30:21Z,从本地原始响应重建，未重新请求网络
+gdelt,de_luggage_de_lang_2022H2.json,FROM_RAW,24240,,013d70d4be132f584c9112f64586f69e2f958875a287e00d3046e64bc1ee92b7,2026-11-20T15:34:44Z,从本地原始响应重建，未重新请求网络
+gdelt,en_luggage_de_src_2021H1.json,FROM_RAW,141425,,ac6e9b9634a2360dcb3256deaa8494b2da04321f86f0fc0297d6639c575c767b,2026-11-20T15:57:29Z,从本地原始响应重建，未重新请求网络
+gdelt,en_luggage_de_src_2021H2.json,FROM_RAW,134676,,4ce7676116544425ea6ce68adac57635ab28a0797b9bada8799696afd8d4b47b,2026-11-20T15:58:36Z,从本地原始响应重建，未重新请求网络
+gdelt,en_luggage_de_src_2022H1.json,FROM_RAW,138836,,394f9a7d5e0928b8d4e4d65c0d066495f8dcefbb402a825202c0216426c7f9d8,2026-11-20T15:59:23Z,从本地原始响应重建，未重新请求网络
+gdelt,en_luggage_de_src_2022H2.json,FROM_RAW,128682,,47c6d5e6bed5ab5bc1653a79e20b23217fbdd61a8d3affe570db63695df5400f,2026-11-20T16:00:08Z,从本地原始响应重建，未重新请求网络

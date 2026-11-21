@@ -1,0 +1,65 @@
+{
+  "window_start": "2021-01-01",
+  "window_end": "2026-12-31",
+  "source": "amazon_reviews_2023",
+  "tier": "L1",
+  "license": "Apache-2.0",
+  "requires_credential": false,
+  "pipeline": "hf-mirror.com /resolve/ 分片直下 + 本地窗口过滤与 PII 清洗",
+  "pilot_shard": "raw_review_Subscription_Boxes（全库最小评论分片，完整下载）",
+  "meta_shard": "raw_meta_Subscription_Boxes",
+  "shard_rows_total": 16216,
+  "rows_in_window": 6207,
+  "years_covered": [
+    "2021",
+    "2022",
+    "2023"
+  ],
+  "year_counts": {
+    "2021": 3674,
+    "2022": 2066,
+    "2023": 467
+  },
+  "time_coverage_density": 0.9146,
+  "time_coverage_sparse": false,
+  "time_coverage_note": "试点分片窗口内按日分布密度达标；但样本仅为全库最小分片，且源数据止于 2023-09，不可当作全库覆盖声明。",
+  "coverage_complete": false,
+  "coverage_note": "覆盖不完整：这是管线试点样本（1 个最小评论分片 + 1 个最小 meta 分片），不是全量迁移；源数据止于 2023-09，窗口 2023-10~2026-12 源端无数据；品类相关分片（Clothing_Shoes_and_Jewelry 26.5GB、Sports_and_Outdoors 8.8GB）超出试点 200MB 预算，未下载",
+  "german_market_adaptability": {
+    "conclusion": "不可适配：无法筛出德国/德语评论子集",
+    "evidence": [
+      "评论与元数据均无 marketplace、language 列",
+      "官方 tags 标 language:en；数据为 Amazon.com 美国全站",
+      "34 个品类全部为 Amazon.com 类目，无独立 Luggage/Travel_Accessories 品类",
+      "对德国市场不构成 L1；德国侧 L1 仍需品牌授权导出"
+    ]
+  },
+  "tier_caveat": "tier=L1 仅就「一手消费者反馈数据集」类别成立；本库为 Amazon.com 美国市场数据，对目标市场（德国）不构成 L1 证据",
+  "mirror_endpoints": {
+    "api_meta": "200 可达",
+    "api_parquet": "400（结论性）：The dataset viewer doesn't support this dataset because it runs arbitrary Python code. You can convert it to a Parquet data-only dataset by using the convert_to",
+    "api_tree": "200 可达（顶层含 Amazon-Reviews-2023.py 加载脚本、all_categories.txt 与 raw/ 目录）",
+    "api_tree_review_categories": "200 可达，34 个品类分片；最小分片 [('Subscription_Boxes.jsonl', 8953020)]",
+    "datasets_server_rows": "不可用：307 重定向到 /Rows 网页路由，返回网页而非 JSON API",
+    "datasets_server_filter": "不可用：返回网页 HTML（huggingface.co 的用户页路由），非 JSON API",
+    "resolve_head": "可达：X-Linked-Size=8953020，302 -> cas-bridge.xethub.hf.co（官方 CDN 本机可达），X-Linked-Etag=52e08112faa2b876…，支持 Range 分段（另经 curl 实测 206）",
+    "probes_conclusive": true,
+    "official_site": "huggingface.co TCP 443 超时（2026-11-21 复测仍不可达，由 curl --connect-timeout 8 实测）"
+  },
+  "page_limit_rows": 100,
+  "page_limit_note": "镜像不代理 datasets-server，/rows /filter 不可用；100 行分页纪律（CONSTRAINTS 一之二）暂无生效场景，留作官方站可达后的约束",
+  "pii_scrubbed": [
+    "email",
+    "phone"
+  ],
+  "text_truncation": {
+    "title": 200,
+    "text": 600
+  },
+  "downloads": {
+    "all_categories.txt": "ok",
+    "README.md": "ok",
+    "review_categories/Subscription_Boxes.jsonl": "ok",
+    "meta_categories/meta_Subscription_Boxes.jsonl": "ok"
+  }
+}
