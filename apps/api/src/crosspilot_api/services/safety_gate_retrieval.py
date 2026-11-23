@@ -25,7 +25,7 @@ from urllib.parse import quote
 from xml.etree import ElementTree
 
 from ..config import REPO_ROOT
-from ..domain.evidence import EvidenceCard, EvidenceLevel, resolve_stance
+from ..domain.evidence import EvidenceCard, EvidenceLevel, stance_of_card
 
 SAFETY_GATE_DIR = REPO_ROOT / "data" / "sources" / "eu_safety_gate"
 SAFETY_GATE_CSV = SAFETY_GATE_DIR / "safety_gate_de_alerts_2021_2026.csv"
@@ -115,8 +115,8 @@ def _build_record(row: dict[str, str], url_map: dict[str, str]) -> SafetyGateRec
         level=EvidenceLevel.L3,
         sample_size=1,  # 单条警报即单卡
     )
-    # stance 一律走 resolve_stance，不得手工指定绕过（L3 必然得到 insufficient）。
-    card = replace(card, stance=resolve_stance([card]))
+    # stance 一律走 stance_of_card 归一，不得手工指定绕过（L3 必然得到 insufficient）。
+    card = replace(card, stance=stance_of_card(card))
     # 检索字段 = product + product_name + brand + danger + measures，预拼接转小写。
     blob = " ".join(
         (

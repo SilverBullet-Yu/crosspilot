@@ -1,228 +1,283 @@
 <script setup lang="ts">
 /**
- * CrossPilot 2.0 —— 三栏证据对照单页（产品核心一屏）。
- * 主题场景：旅行收纳包 → 德国市场。
- *
- * 布局：
- *   顶栏    产品×市场输入 + 数据模式徽标 + 场景切换（真实快照 / 演示·证据冲突 / 演示·有限支持）
- *   状态横幅 当前场景总体结论（缺少有效数据 / 证据相互冲突 / 已有有限支持），第一眼可见
- *   三栏    左：企业假设（3 条预置，方案 4.3）｜中：证据对照（支持/相反/缺失三组）｜右：待验证问题
- *
- * URL 参数 ?scenario=real|conflict|limited 可直达指定场景（便于演示与验收）。
+ * 产品概览（落地页）—— 产品叙事一屏：hero 卖点之问 + 一次验证如何发生（模拟示例卡）
+ * + 四步方法（编号大卡）+ 样本量→判定交互演示器 + 工作台入口 + FAQ。
+ * 演示内容一律带「模拟示例」标识（CONSTRAINTS 第四节）；演示器公式为产品真实口径
+ * （decideFromVotes 与工作台兜底判定共用一份，ADR-0005），不编造任何数字。
+ * 兼容旧深链：/?scenario=x 直达工作台对应场景（2026-11-22 多页化前的 URL 形态）。
  */
-import { SCENARIOS, loadEvidenceEnvelope } from "../composables/useEvidence"
-import type { ScenarioId, EvidenceEnvelope } from "../composables/useEvidence"
-import { HYPOTHESES, groupCardsByHypothesis, STATUS_META } from "../utils/hypotheses"
-import type { HypothesisStatus } from "../utils/hypotheses"
-import type { EvidenceStance } from "../utils/evidence-schema"
+import { decideFromVotes, DECISION_LABEL } from "../composables/useEvidence"
 
 const route = useRoute()
-const router = useRouter()
 
-const config = useRuntimeConfig()
-// NUXT_PUBLIC_API_BASE：空或 "fixtures" → 本地夹具；URL → 真实后端
-const apiBase = String(config.public.apiBase ?? "fixtures")
+if (route.query.scenario) {
+  await navigateTo({ path: "/workbench", query: route.query }, { replace: true })
+}
 
-const productInput = ref("旅行收纳包")
-const marketInput = ref("德国")
-const searchQuery = ref("旅行收纳包")
+useHead({ title: "产品概览 · CrossPilot 2.0" })
 
-const scenario = computed<ScenarioId>(() => {
-  const s = String(route.query.scenario ?? "real")
-  return s === "conflict" || s === "limited" ? s : "real"
+/** 方法四步（产品叙事：假设 → 对照 → 差异 → 下一轮验证） */
+const STEPS = [
+  { no: "01", title: "提出卖点假设", body: "把产品优点变成可检验的问题" },
+  { no: "02", title: "对照多来源证据", body: "区分消费者反馈、经验与背景" },
+  { no: "03", title: "识别认知差异", body: "看见支持、冲突与证据缺口" },
+  { no: "04", title: "启动下一轮验证", body: "带着问题和实验回到市场" },
+]
+
+/** 判定 → 建议动作（与演示说明 8.3 映射一致；三态语义色与工作台同源） */
+const ACTIONS = [
+  { tag: "已有有限支持", cls: "tag--ok", action: "扩大样本复核后，再写入详情页卖点" },
+  { tag: "证据冲突", cls: "tag--bad", action: "先验证冲突维度，不急于修改详情页" },
+  { tag: "缺少有效数据", cls: "tag--warn", action: "启动用户访谈与评论补样" },
+]
+
+/**
+ * 「样本量 → 判定」演示器：滑块跑工作台同款判定公式（decideFromVotes）。
+ * 初始 30/21 = limited 场景同款边界（下界 0.521 刚过决定线）；三个预设按钮
+ * 为 test_decision.py 同款真实边界用例。
+ */
+const demoN = ref(30)
+const demoK = ref(21)
+
+watch(demoN, (n) => {
+  if (demoK.value > n) demoK.value = n
 })
 
-const { data, pending, error, refresh } = await useAsyncData<EvidenceEnvelope>(
-  "evidence",
-  () => loadEvidenceEnvelope(scenario.value, searchQuery.value, apiBase),
-  { watch: [scenario, searchQuery] },
-)
+const demo = computed(() => decideFromVotes(demoK.value, demoN.value - demoK.value))
 
-/** 切换场景：写回 URL（可分享、可被 curl 带 SSR 数据验证） */
-function switchScenario(id: ScenarioId) {
-  router.replace({ query: { ...route.query, scenario: id } })
+const demoLabel = computed(() => DECISION_LABEL[demo.value.state])
+
+const DEMO_CLS: Record<string, string> = {
+  supported: "tag--ok",
+  conflicting: "tag--bad",
+  refuted: "tag--bad",
+  insufficient: "tag--warn",
 }
+const demoCls = computed(() => DEMO_CLS[demo.value.state])
 
-/** 检索按钮：以产品输入词重新拉取真实快照场景 */
-function submitSearch() {
-  searchQuery.value = productInput.value.trim() || "旅行收纳包"
-}
-
-const envelope = computed(() => data.value ?? null)
-
-/** 中栏：合法证据卡按假设分组（支持/相反/缺失）+ 未归属组 */
-const grouped = computed(() =>
-  envelope.value ? groupCardsByHypothesis(envelope.value.cards) : null,
-)
-
-/** 左栏：每条假设的状态（镜像 domain/evidence.py 的 resolve_stance，仅 L1 计入） */
-const leftStatuses = computed<Record<string, HypothesisStatus>>(() => {
-  const map: Record<string, HypothesisStatus> = {}
-  for (const g of grouped.value?.groups ?? []) {
-    map[g.hypothesis.id] = g.status
+const demoNote = computed(() => {
+  const n = demoN.value
+  const k = demoK.value
+  if (demo.value.state === "insufficient" && n < 30) {
+    return `去重后有极性样本 ${n} 低于门禁 30，按口径强制 insufficient；补样至 30 后决定线为份额 ≥68%`
   }
-  return map
+  const s = demo.value.supportInterval
+  if (!s) return "无决定性多数且区间不重叠——缺少有效数据"
+  const fmt = (v: number) => v.toFixed(2)
+  if (demo.value.state === "supported") {
+    return `支持份额 ${fmt(k / n)} · 95% 下界 ${fmt(s.lo)} 刚过决定线（n=30 时需份额 ≥68% 才判决定性多数）`
+  }
+  if (demo.value.state === "refuted") {
+    return `反对份额 ${fmt((n - k) / n)} · 95% 下界 ${fmt(demo.value.opposeInterval!.lo)} 过决定线——决定性多数反对`
+  }
+  return `支持下界 ${fmt(s.lo)} 与反支持下界 ${fmt(demo.value.opposeInterval!.lo)} 的区间重叠——95% 置信下难分高下`
 })
 
-function leftClass(id: string): string {
-  const s = leftStatuses.value[id] ?? "insufficient"
-  return STATUS_META[s].cls
+/** 真实边界用例预设（与后端 test_decision.py 用例一致） */
+const DEMO_PRESETS = [
+  { n: 30, k: 15, label: "15 : 15 → 证据相互冲突" },
+  { n: 30, k: 21, label: "21 : 9 → 已有有限支持" },
+  { n: 30, k: 9, label: "9 : 21 → 多数反馈反对" },
+]
+function applyPreset(p: { n: number; k: number }) {
+  demoN.value = p.n
+  demoK.value = p.k
 }
 
-function leftLabel(id: string): string {
-  const s = leftStatuses.value[id] ?? "insufficient"
-  return STATUS_META[s].label
-}
-
-/** 演示场景下，真实 API/夹具返回的卡片（含知乎 L2 卡）是否含演示数据（供顶栏提示） */
-const hasDemoCards = computed(() =>
-  [...(envelope.value?.cards ?? []), ...(envelope.value?.l2Cards ?? [])].some(
-    (c) => c.is_demo_data,
-  ),
-)
-
-const scenarioMeta = computed(
-  () => SCENARIOS.find((s) => s.id === scenario.value) ?? SCENARIOS[0],
-)
-
-const activeLabel = (id: ScenarioId) => (scenario.value === id ? "active" : "")
+/** FAQ（内容 = 演示说明 8.5 高频质疑预案，口径一致、零编造） */
+const FAQS = [
+  {
+    q: "拿不到德国消费者一手反馈，你们给什么？",
+    a: "不辩解，把问题本身亮出来。「缺少有效数据」是系统的诚实输出：每个假设下都给出该核实什么（应核实方向 + 待验证问题），而不是编一段结论。L1 获取路径（品牌授权导出）已在方案中，是下一轮接入的第一优先级。",
+  },
+  {
+    q: "「证据不足」是拍脑袋吗？",
+    a: "不是——是公式。门禁（去重后有极性样本 n≥30）+ Wilson 95% 区间（决定线：n=30 时份额 ≥68% 才判决定性多数）+ 区间重叠判冲突。判定依据在工作台横幅逐项可读，下方演示器跑的就是同一条公式，边界用例写入测试。",
+  },
+  {
+    q: "为什么不训练一个模型来下结论？",
+    a: "全链路零训练是设计选择。不训练 = 可审计（每条证据带规则命中与区间）、可复现（无随机种子波动）、不受一手标注稀缺制约、部署零 GPU；LLM 只做零样本立场抽取备胎，属推理不属训练。含拟合成分的方案被显式排除。",
+  },
+  {
+    q: "数据从哪来，会爬知乎吗？",
+    a: "不建全文库。知乎侧只做检索 + 摘录引用（≤300 字符、作者匿名化、PII 剔除）+ 链接回源；监管与贸易语境来自 Safety Gate / Eurostat / Comext 等官方公开数据，逐源许可入档。重复评论不虚增一致性——去重先于计数，同簇只计 1 条。",
+  },
+]
 </script>
 
 <template>
-  <div class="page">
-    <!-- 顶栏 -->
-    <header class="topbar">
-      <div class="topbar__brand">
-        <span class="topbar__logo">CrossPilot 2.0</span>
-        <span class="topbar__tagline">跨境消费者认知差验证</span>
-      </div>
-      <form class="topbar__form" @submit.prevent="submitSearch">
-        <label class="topbar__field">
-          <span class="topbar__label">产品</span>
-          <input v-model="productInput" type="text" class="topbar__input" />
-        </label>
-        <span class="topbar__x">×</span>
-        <label class="topbar__field">
-          <span class="topbar__label">市场</span>
-          <input v-model="marketInput" type="text" class="topbar__input topbar__input--market" />
-        </label>
-        <button type="submit" class="topbar__search">检索证据</button>
-        <span class="topbar__source">
-          数据源：{{ envelope?.dataSource ?? (apiBase === 'fixtures' || apiBase === '' ? '本地 fixtures' : `真实 API（${apiBase}）`) }}
-        </span>
-      </form>
-      <nav class="topbar__scenarios" aria-label="场景切换">
-        <button
-          v-for="s in SCENARIOS"
-          :key="s.id"
-          type="button"
-          class="scenario-btn"
-          :class="[activeLabel(s.id), { 'scenario-btn--demo': s.demo }]"
-          @click="switchScenario(s.id)"
-        >
-          {{ s.label }}
-        </button>
-      </nav>
-    </header>
-
-    <!-- 加载/错误状态 -->
-    <div v-if="pending" class="statebox">正在加载证据…</div>
-    <div v-else-if="error" class="statebox statebox--error">
-      <p>证据加载失败：{{ (error as Error).message }}</p>
-      <button type="button" class="topbar__search" @click="refresh()">重试</button>
-    </div>
-
-    <template v-else-if="envelope">
-      <!-- 状态横幅：当前场景总体结论，第一眼可见 -->
-      <StanceBanner
-        :stance="envelope.stance as EvidenceStance"
-        :scenario="scenario"
-        :query="envelope.query || searchQuery"
-        :market="marketInput"
-        :data-mode="envelope.data_mode"
-        :generated-at="envelope.generated_at"
-        :data-source="envelope.dataSource"
-      />
-
-      <p v-if="envelope.invalidCards.length" class="invalid-banner">
-        契约提示：本次返回有 {{ envelope.invalidCards.length }} 张证据卡缺少必现字段，已按契约拒绝渲染（见中栏底部占位说明）。
-      </p>
-
-      <!-- 三栏主体 -->
-      <main class="columns">
-        <!-- 左栏：企业假设 -->
-        <section class="col col--left">
-          <h2 class="col__heading">企业假设</h2>
-          <p class="col__hint">预置 3 条（方案 4.3）· 状态由对照结果实时判定</p>
-          <article
-            v-for="h in HYPOTHESES"
-            :key="h.id"
-            class="hypocard"
-            :class="leftClass(h.id)"
-          >
-            <p class="hypocard__title">{{ h.title }}</p>
-            <span class="status-pill" :class="leftClass(h.id)">{{ leftLabel(h.id) }}</span>
-            <p class="hypocard__probe">{{ h.probe }}</p>
-          </article>
-          <p v-if="hasDemoCards" class="hypocard__demo-hint">
-            本页含「演示数据」卡片：整卡斜纹边框 + 角标，与真实反馈分组呈现，绝不混排。
+  <AppShell crumb="产品概览">
+    <div class="landing">
+      <!-- Hero：卖点之问 + 一次验证如何发生 -->
+      <section class="hero">
+        <div class="hero__copy">
+          <h1 class="hero__title">
+            你的出海卖点，<br>真的符合<br>
+            <span class="hero__accent">海外用户需求吗？</span>
+          </h1>
+          <p class="hero__lead">
+            CrossPilot 利用真实商品反馈与跨境从业经验，帮助品牌检验卖点假设、识别证据缺口，并制定下一步市场验证计划。
           </p>
-        </section>
-
-        <!-- 中栏：证据对照 -->
-        <section class="col col--mid">
-          <h2 class="col__heading">证据对照</h2>
-          <p class="col__hint">
-            每条假设按 支持证据 / 相反证据 / 缺失证据 三组对照；证据卡渲染契约六必现字段。
+          <div class="hero__actions">
+            <NuxtLink to="/workbench" class="btn btn--primary">开始验证 <span aria-hidden="true">→</span></NuxtLink>
+            <NuxtLink to="/workbench?scenario=conflict" class="btn btn--ghost">查看演示案例 ↗</NuxtLink>
+          </div>
+          <p class="hero__note">
+            <span class="dot" aria-hidden="true"></span>
+            当前为演示模式 · 无需登录 · 不调用真实 AI
           </p>
-          <HypothesisEvidence
-            v-for="g in grouped?.groups ?? []"
-            :key="g.hypothesis.id"
-            :group="g"
-          />
-
-          <!-- 未归属证据：关键词未命中任何假设的卡，人工复核，绝不静默丢弃 -->
-          <section v-if="(grouped?.unmatched.length ?? 0) > 0" class="hypo hypo--unmatched">
-            <header class="hypo__head">
-              <h3 class="hypo__title">未归属证据</h3>
-              <span class="status-pill status--info">{{ grouped!.unmatched.length }} 张</span>
-            </header>
-            <p class="hypo__probe">
-              以下证据未命中三条假设的归属关键词（多为 L3 背景语境），不参与状态判定，需人工复核。
-            </p>
-            <EvidenceCardView v-for="(c, i) in grouped!.unmatched" :key="i" :card="c" />
-          </section>
-
-          <!-- 契约校验占位说明：缺字段卡不渲染 -->
-          <section v-if="envelope.invalidCards.length" class="hypo hypo--invalid">
-            <header class="hypo__head">
-              <h3 class="hypo__title">契约校验未通过 · 占位说明</h3>
-            </header>
-            <InvalidCardNotice v-for="(inv, i) in envelope.invalidCards" :key="i" :invalid="inv" />
-          </section>
-        </section>
-
-        <!-- 右栏：中文侧经验（L2）+ 待验证问题与测试建议 -->
-        <div class="col col--right">
-          <section v-if="envelope.l2Cards.length || envelope.l2Notice" class="l2zone">
-            <h2 class="col__heading">中文侧经验（L2 · 知乎）</h2>
-            <p class="col__hint">
-              中文从业者经验只产出待验证问题，不构成支持/反对（硬约束 1）。
-            </p>
-            <p v-if="envelope.l2Notice" class="l2zone__notice">{{ envelope.l2Notice }}</p>
-            <p v-else-if="envelope.l2InvalidCards.length" class="l2zone__notice">
-              知乎侧有 {{ envelope.l2InvalidCards.length }} 张卡缺少必现字段，已按契约拒绝渲染。
-            </p>
-            <EvidenceCardView v-for="(c, i) in envelope.l2Cards" :key="i" :card="c" />
-          </section>
-          <QuestionsColumn :questions="envelope.questions" />
         </div>
-      </main>
 
-      <footer class="footer">
-        <span>固定演示边界：非电器旅行收纳包 → 德国市场 → 详情页首屏卖点验证（方案 4.1）</span>
-        <span>market={{ envelope.market }} · scenario={{ envelope.scenario }} · data_mode={{ envelope.data_mode }}</span>
+        <div class="hero__card">
+          <div class="herocard">
+            <header class="herocard__head">
+              <span class="herocard__cap">
+                <svg class="herocard__capicon" viewBox="0 0 24 24" aria-hidden="true">
+                  <circle cx="12" cy="12" r="10" fill="var(--accent)" />
+                  <path d="M15.8 8.2 10.6 10.6 8.2 15.8 13.4 13.4Z" fill="#fff" />
+                </svg>
+                一次卖点验证，如何发生
+              </span>
+              <span class="tag tag--demo">模拟示例</span>
+            </header>
+            <div class="herocard__body">
+              <p class="herocard__eyebrow">企业卖点假设</p>
+              <p class="herocard__hyp">“隔层越多越好”</p>
+              <p class="herocard__meta">旅行收纳包 / 海外英文电商市场</p>
+              <div class="herocard__cut"><span class="herocard__cutmark" aria-hidden="true">✂</span></div>
+              <div class="herocard__pair">
+                <div class="vote vote--support">
+                  <span class="vote__tag">✓ 支持观点</span>
+                  <p class="vote__quote">“独立口袋让我把线材和洗漱用品分开。”</p>
+                  <p class="vote__src">消费者直接反馈 · 模拟示例</p>
+                </div>
+                <div class="vote vote--oppose">
+                  <span class="vote__tag">反对观点</span>
+                  <p class="vote__quote">“小隔层太多，我更希望有一个开放的大空间。”</p>
+                  <p class="vote__src">消费者直接反馈 · 模拟示例</p>
+                </div>
+              </div>
+            </div>
+            <div class="herocard__verdict">
+              <span class="tag tag--demo">⇄ 证据冲突</span>
+              <p class="herocard__verdict-text">分区需求存在差异，先验证收纳习惯。</p>
+              <NuxtLink to="/workbench?scenario=conflict" class="herocard__link">查看完整证据链 →</NuxtLink>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 方法四步（编号大卡） -->
+      <section class="method">
+        <h2 class="method__title">从“我认为”，到“有依据”。</h2>
+        <p class="method__sub">让每一个出海决策，都有可追溯的下一步。</p>
+        <ol class="steps">
+          <li v-for="s in STEPS" :key="s.no" class="step">
+            <div class="step__no num">{{ s.no }}</div>
+            <p class="step__title">{{ s.title }}</p>
+            <p class="step__body">{{ s.body }}</p>
+          </li>
+        </ol>
+      </section>
+
+      <!-- 样本量 → 判定 交互演示器（产品真实公式） -->
+      <section class="method calc">
+        <div class="calc__head">
+          <h2 class="method__title">判定不是拍脑袋，是公式。</h2>
+          <span class="tag tag--demo">模拟示例 · 公式为产品真实口径</span>
+        </div>
+        <p class="method__sub">拖动滑块，看样本量与支持票数如何改变判定——演示器跑的就是工作台使用的 Wilson 95% 区间与门禁公式。</p>
+
+        <div class="calc__card">
+          <div class="calc__controls">
+            <div class="ctl">
+              <div class="ctl__labelrow">
+                <span class="ctl__name">样本量 n（去重后有极性样本）</span>
+                <span class="ctl__value num">{{ demoN }}</span>
+              </div>
+              <input v-model.number="demoN" type="range" min="10" max="60" step="1" aria-label="样本量">
+              <p class="ctl__hint">门禁：n ≥ 30 才进入区间判定，否则直接判「缺少有效数据」</p>
+            </div>
+            <div class="ctl">
+              <div class="ctl__labelrow">
+                <span class="ctl__name">支持票 k（其中支持样本数）</span>
+                <span class="ctl__value num">{{ demoK }}</span>
+              </div>
+              <input v-model.number="demoK" type="range" min="0" :max="demoN" step="1" aria-label="支持票数">
+              <p class="ctl__hint">决定线：支持份额 95% 区间下界 &gt; 0.5 → 判「已有有限支持」</p>
+            </div>
+            <div class="calc__presets">
+              <button
+                v-for="p in DEMO_PRESETS"
+                :key="p.label"
+                type="button"
+                class="preset"
+                @click="applyPreset(p)"
+              >
+                边界用例 <span class="num">{{ p.label }}</span>
+              </button>
+            </div>
+          </div>
+
+          <div class="calc__out">
+            <div class="calc__verdict">
+              <span class="tag" :class="demoCls">{{ demoLabel }}</span>
+              <span class="calc__verdict-label">{{ demoLabel }}</span>
+            </div>
+            <IntervalGauge
+              variant="plain"
+              :lo-s="demo.supportInterval?.lo ?? null"
+              :hi-s="demo.supportInterval?.hi ?? null"
+              :lo-o="demo.opposeInterval?.lo ?? null"
+              :hi-o="demo.opposeInterval?.hi ?? null"
+              :share-s="demoN > 0 ? demoK / demoN : null"
+              :share-o="demoN > 0 ? (demoN - demoK) / demoN : null"
+            />
+            <p class="calc__note num">{{ demoNote }}</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- 工作台 CTA：判定 → 动作 -->
+      <section class="cta">
+        <div class="cta__head">
+          <div>
+            <h2 class="cta__title">少一点猜测，多一点看得见的依据。</h2>
+            <p class="cta__sub">假设、证据、行动，在同一个工作台完成。</p>
+          </div>
+          <NuxtLink to="/workbench" class="cta__link">进入工作台 ↗</NuxtLink>
+        </div>
+        <div class="cta__card">
+          <p class="cta__card-title">拿到验证结果，直接转成下一步行动</p>
+          <div class="cta__rows">
+            <div v-for="a in ACTIONS" :key="a.tag" class="cta__row">
+              <span class="tag" :class="a.cls">{{ a.tag }}</span>
+              <span>{{ a.action }}</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- FAQ（口径 = 演示说明 8.5 质疑预案） -->
+      <section class="method faq">
+        <h2 class="method__title">高频疑问，直接回答。</h2>
+        <p class="method__sub">与评委和卖家的问答口径一致，答案可追溯到 ADR-0005 与数据区 README。</p>
+        <div class="faq__list">
+          <details v-for="(f, i) in FAQS" :key="i" class="faq__item">
+            <summary>
+              <span class="faq__qno num">{{ String(i + 1).padStart(2, "0") }}</span>
+              {{ f.q }}
+              <span class="faq__mark" aria-hidden="true"></span>
+            </summary>
+            <p class="faq__body">{{ f.a }}</p>
+          </details>
+        </div>
+      </section>
+
+      <footer class="landing__footer">
+        <span>固定演示边界：非电器旅行收纳包 → 德国市场 → 详情页首屏卖点验证</span>
+        <span class="num">演示构建 · fixtures 数据</span>
       </footer>
-    </template>
-  </div>
+    </div>
+  </AppShell>
 </template>

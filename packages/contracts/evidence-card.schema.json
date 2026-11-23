@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "EvidenceCard",
-  "description": "前后端共享契约。六个必现字段缺一不可，缺失则前端不得渲染该卡。",
+  "description": "前后端共享契约。六个必现字段缺一不可，缺失则前端不得渲染该卡。ADR-0005 卡级扩展字段全 optional：dedup（去重结果，R2 管道产物）、stance_votes / annotator_agreement（多标注器票与一致度，R4）、grade / downgrade_reasons（GRADE 式静态注记，仅 L2/L3）。判定级字段（state / stance_interval / gate_status / recommended_tier）不属于证据卡——判定是卡集合的函数，落点在响应包络（routers/evidence.py 的 EvidenceResponse.decision），不进本 schema（ADR-0005 对抗审查 C2）。",
   "type": "object",
   "required": ["excerpt", "source_url", "language", "published_on", "level", "sample_size"],
   "properties": {
@@ -11,8 +11,48 @@
     "published_on": { "type": "string", "format": "date" },
     "level": { "enum": ["L1", "L2", "L3"], "description": "L2/L3 不得单独支撑偏好结论" },
     "sample_size": { "type": ["integer", "null"], "description": "null 须在卡面标注偏差" },
-    "stance": { "enum": ["support", "oppose", "insufficient"] },
-    "is_demo_data": { "type": "boolean", "default": false, "description": "true 时必须显式标识「演示数据」，不与真实反馈同卡混排" }
+    "stance": { "enum": ["support", "oppose", "insufficient"], "description": "卡级立场信号（判定管道输入）；判定输出见包络 decision.state" },
+    "is_demo_data": { "type": "boolean", "default": false, "description": "true 时必须显式标识「演示数据」，不与真实反馈同卡混排" },
+    "dedup": {
+      "type": ["object", "null"],
+      "default": null,
+      "description": "近重复去重结果（R2：去重先于计数）；L1 卡才有，L2/L3 恒 null",
+      "properties": {
+        "cluster_id": { "type": "integer", "minimum": 0 },
+        "dup_count": { "type": "integer", "minimum": 1 },
+        "is_canonical": { "type": "boolean", "description": "false = 簇内重复摘录，不进立场计数" }
+      },
+      "required": ["cluster_id", "dup_count", "is_canonical"],
+      "additionalProperties": false
+    },
+    "stance_votes": {
+      "type": ["object", "null"],
+      "default": null,
+      "description": "多标注器立场票（两票制：rule + llm；llm=null 为标注器缺席，R6 显式传播）",
+      "properties": {
+        "rule": { "enum": ["support", "oppose", "insufficient"] },
+        "llm": { "enum": ["support", "oppose", "insufficient", null] }
+      },
+      "required": ["rule", "llm"],
+      "additionalProperties": false
+    },
+    "annotator_agreement": {
+      "type": ["boolean", "null"],
+      "default": null,
+      "description": "标注器一致度：null=单标注器无法评估；false=标注器分歧（R4：标注冲突≠证据冲突，分歧不产生 conflicting 判定）"
+    },
+    "grade": {
+      "type": ["string", "null"],
+      "enum": ["high", "moderate", "low", "very-low", null],
+      "default": null,
+      "description": "GRADE 式证据质量静态注记（仅 L2/L3）；当前实现态恒 null，填充由演示文档静态注记（A6）提供"
+    },
+    "downgrade_reasons": {
+      "type": "array",
+      "items": { "type": "string" },
+      "default": [],
+      "description": "GRADE 降级理由（静态注记）；空数组 = 无降级"
+    }
   },
   "additionalProperties": false
 }

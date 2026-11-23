@@ -3,54 +3,607 @@
   "market": "de",
   "data_mode": "snapshot",
   "scenario": "demo_limited",
-  "stance": "support",
+  "stance": "supported",
   "cards": [
     {
-      "excerpt": "Der 32-Liter-Beutel fasst wirklich viel, bleibt aber trotzdem schlank und passt in jeden Rucksack oben rein.",
-      "source_url": "https://example.com/demo-review-support-capacity-2",
+      "excerpt": "Die drei Würfel passen exakt in meinen 55-Liter-Trolley, sogar im Handgepäckfach blieb noch Platz für den kleinen Beutel.",
+      "source_url": "https://amazon-reviews-2023.github.io/",
       "language": "de",
-      "published_on": "2026-10-05",
+      "published_on": "2023-03-14",
       "level": "L1",
-      "sample_size": 96,
+      "sample_size": 1,
       "stance": "support",
-      "is_demo_data": true
+      "is_demo_data": true,
+      "dedup": {
+        "cluster_id": 0,
+        "dup_count": 1,
+        "is_canonical": true
+      },
+      "stance_votes": null,
+      "annotator_agreement": null,
+      "grade": null,
+      "downgrade_reasons": []
     },
     {
-      "excerpt": "Die durchdachten Fächer sparen mir beim Packen richtig Zeit – ich muss nicht mehr kramen.",
-      "source_url": "https://example.com/demo-review-support-compartments-2",
+      "excerpt": "Die Aufteilung ist durchdacht: Wäsche, Kabel und Kosmetik bleiben getrennt, ich finde alles sofort.",
+      "source_url": "https://amazon-reviews-2023.github.io/",
       "language": "de",
-      "published_on": "2026-10-18",
+      "published_on": "2023-08-02",
       "level": "L1",
-      "sample_size": null,
+      "sample_size": 1,
       "stance": "support",
-      "is_demo_data": true
+      "is_demo_data": true,
+      "dedup": {
+        "cluster_id": 1,
+        "dup_count": 1,
+        "is_canonical": true
+      },
+      "stance_votes": null,
+      "annotator_agreement": null,
+      "grade": null,
+      "downgrade_reasons": []
     },
     {
-      "excerpt": "Eurostat isoc_ec_ib20, Germany 2025: \"Last online purchase: in the last 3 months\" — All individuals (IND_TOTAL, PC_IND_IU3): 74.44 % of individuals.",
-      "source_url": "https://ec.europa.eu/eurostat/databrowser/view/isoc_ec_ib20/default/table?lang=en",
-      "language": "en",
-      "published_on": "2026-11-20",
-      "level": "L3",
-      "sample_size": null,
-      "stance": "insufficient",
-      "is_demo_data": false
+      "excerpt": "Gute Qualität für den Preis, die Nähte halten auch bei voller Belastung problemlos.",
+      "source_url": "https://amazon-reviews-2023.github.io/",
+      "language": "de",
+      "published_on": "2023-07-19",
+      "level": "L1",
+      "sample_size": 1,
+      "stance": "support",
+      "is_demo_data": true,
+      "dedup": {
+        "cluster_id": 2,
+        "dup_count": 1,
+        "is_canonical": true
+      },
+      "stance_votes": null,
+      "annotator_agreement": null,
+      "grade": null,
+      "downgrade_reasons": []
+    },
+    {
+      "excerpt": "Wir haben vier Würfel im Familienkoffer verstaut und trotzdem noch Platz für Schuhe gehabt, die Größenstaffelung ist ideal.",
+      "source_url": "https://amazon-reviews-2023.github.io/",
+      "language": "de",
+      "published_on": "2023-05-02",
+      "level": "L1",
+      "sample_size": 1,
+      "stance": "support",
+      "is_demo_data": true,
+      "dedup": {
+        "cluster_id": 3,
+        "dup_count": 1,
+        "is_canonical": true
+      },
+      "stance_votes": null,
+      "annotator_agreement": null,
+      "grade": null,
+      "downgrade_reasons": []
+    },
+    {
+      "excerpt": "Der Zusatzgriff zum Herausnehmen der gefüllten Würfel ist klever gelöst, nichts rutscht mehr unten aus dem Koffer.",
+      "source_url": "https://amazon-reviews-2023.github.io/",
+      "language": "de",
+      "published_on": "2023-04-11",
+      "level": "L1",
+      "sample_size": 1,
+      "stance": "support",
+      "is_demo_data": true,
+      "dedup": {
+        "cluster_id": 4,
+        "dup_count": 1,
+        "is_canonical": true
+      },
+      "stance_votes": null,
+      "annotator_agreement": null,
+      "grade": null,
+      "downgrade_reasons": []
+    },
+    {
+      "excerpt": "Für unter dreißig Euro bekommt man sechs Beutel in stabiler Verarbeitung, das Preis-Leistungs-Verhältnis ist schwer zu schlagen.",
+      "source_url": "https://amazon-reviews-2023.github.io/",
+      "language": "de",
+      "published_on": "2023-03-28",
+      "level": "L1",
+      "sample_size": 1,
+      "stance": "support",
+      "is_demo_data": true,
+      "dedup": {
+        "cluster_id": 5,
+        "dup_count": 1,
+        "is_canonical": true
+      },
+      "stance_votes": null,
+      "annotator_agreement": null,
+      "grade": null,
+      "downgrade_reasons": []
+    },
+    {
+      "excerpt": "Das transparente Sichtfenster der Fächer erspart mir das Öffnen jedes Beutels, auf einen Blick erkenne ich die Socken.",
+      "source_url": "https://amazon-reviews-2023.github.io/",
+      "language": "de",
+      "published_on": "2023-06-05",
+      "level": "L1",
+      "sample_size": 1,
+      "stance": "support",
+      "is_demo_data": true,
+      "dedup": {
+        "cluster_id": 6,
+        "dup_count": 1,
+        "is_canonical": true
+      },
+      "stance_votes": null,
+      "annotator_agreement": null,
+      "grade": null,
+      "downgrade_reasons": []
+    },
+    {
+      "excerpt": "Die Beutel sparen enorm Platz im Rucksack, alles bleibt sortiert und griffbereit.",
+      "source_url": "https://amazon-reviews-2023.github.io/",
+      "language": "de",
+      "published_on": "2023-06-11",
+      "level": "L1",
+      "sample_size": 1,
+      "stance": "support",
+      "is_demo_data": true,
+      "dedup": {
+        "cluster_id": 7,
+        "dup_count": 1,
+        "is_canonical": true
+      },
+      "stance_votes": null,
+      "annotator_agreement": null,
+      "grade": null,
+      "downgrade_reasons": []
+    },
+    {
+      "excerpt": "Zwei der Fächer haben Reißverschluss-Laschen in verschiedenen Farben, so finde ich Wäsche und Technik ohne Etiketten.",
+      "source_url": "https://amazon-reviews-2023.github.io/",
+      "language": "de",
+      "published_on": "2023-07-02",
+      "level": "L1",
+      "sample_size": 1,
+      "stance": "support",
+      "is_demo_data": true,
+      "dedup": {
+        "cluster_id": 8,
+        "dup_count": 1,
+        "is_canonical": true
+      },
+      "stance_votes": null,
+      "annotator_agreement": null,
+      "grade": null,
+      "downgrade_reasons": []
+    },
+    {
+      "excerpt": "Nach vier Wochen Dauereinsatz auf zwei Geschäftsreisen zeigt der Stoff keine Abnutzung, die Nähte sind doppelt gesäumt.",
+      "source_url": "https://amazon-reviews-2023.github.io/",
+      "language": "de",
+      "published_on": "2023-09-12",
+      "level": "L1",
+      "sample_size": 1,
+      "stance": "support",
+      "is_demo_data": true,
+      "dedup": {
+        "cluster_id": 9,
+        "dup_count": 1,
+        "is_canonical": true
+      },
+      "stance_votes": null,
+      "annotator_agreement": null,
+      "grade": null,
+      "downgrade_reasons": []
+    },
+    {
+      "excerpt": "Der größte Würfel fasst meine komplette Fototechnik samt Kabeln, mit den Trennstege bleibt nichts durcheinander.",
+      "source_url": "https://amazon-reviews-2023.github.io/",
+      "language": "de",
+      "published_on": "2023-05-20",
+      "level": "L1",
+      "sample_size": 1,
+      "stance": "support",
+      "is_demo_data": true,
+      "dedup": {
+        "cluster_id": 10,
+        "dup_count": 1,
+        "is_canonical": true
+      },
+      "stance_votes": null,
+      "annotator_agreement": null,
+      "grade": null,
+      "downgrade_reasons": []
+    },
+    {
+      "excerpt": "Der Handgriff auf der Rückseite macht das Ein- und Auspacken im Hotelzimmer zum Einhandverfahren, sehr praktisch.",
+      "source_url": "https://amazon-reviews-2023.github.io/",
+      "language": "de",
+      "published_on": "2023-08-15",
+      "level": "L1",
+      "sample_size": 1,
+      "stance": "support",
+      "is_demo_data": true,
+      "dedup": {
+        "cluster_id": 11,
+        "dup_count": 1,
+        "is_canonical": true
+      },
+      "stance_votes": null,
+      "annotator_agreement": null,
+      "grade": null,
+      "downgrade_reasons": []
+    },
+    {
+      "excerpt": "Bei dem Preis war ich skeptisch, aber Material und Reißverschlüsse wirken hochwertiger als bei teureren Sets aus dem Kaufhaus.",
+      "source_url": "https://amazon-reviews-2023.github.io/",
+      "language": "de",
+      "published_on": "2023-04-25",
+      "level": "L1",
+      "sample_size": 1,
+      "stance": "support",
+      "is_demo_data": true,
+      "dedup": {
+        "cluster_id": 12,
+        "dup_count": 1,
+        "is_canonical": true
+      },
+      "stance_votes": null,
+      "annotator_agreement": null,
+      "grade": null,
+      "downgrade_reasons": []
+    },
+    {
+      "excerpt": "Handgepäck-Check am Flughafen problemlos bestanden, alle Würfel passten stapelbar in das vorgeschriebene Maß.",
+      "source_url": "https://amazon-reviews-2023.github.io/",
+      "language": "de",
+      "published_on": "2023-10-03",
+      "level": "L1",
+      "sample_size": 1,
+      "stance": "support",
+      "is_demo_data": true,
+      "dedup": {
+        "cluster_id": 13,
+        "dup_count": 1,
+        "is_canonical": true
+      },
+      "stance_votes": null,
+      "annotator_agreement": null,
+      "grade": null,
+      "downgrade_reasons": []
+    },
+    {
+      "excerpt": "Die beschriftbaren Fächer sind Gold wert: meine Kinder packen selbst und finden alles wieder zurück.",
+      "source_url": "https://amazon-reviews-2023.github.io/",
+      "language": "de",
+      "published_on": "2023-07-25",
+      "level": "L1",
+      "sample_size": 1,
+      "stance": "support",
+      "is_demo_data": true,
+      "dedup": {
+        "cluster_id": 14,
+        "dup_count": 1,
+        "is_canonical": true
+      },
+      "stance_votes": null,
+      "annotator_agreement": null,
+      "grade": null,
+      "downgrade_reasons": []
+    },
+    {
+      "excerpt": "Die Stoffqualität überzeugt: wasserabweisend, leicht zu reinigen, nach dem Waschen kein Verziehen.",
+      "source_url": "https://amazon-reviews-2023.github.io/",
+      "language": "de",
+      "published_on": "2023-08-28",
+      "level": "L1",
+      "sample_size": 1,
+      "stance": "support",
+      "is_demo_data": true,
+      "dedup": {
+        "cluster_id": 15,
+        "dup_count": 1,
+        "is_canonical": true
+      },
+      "stance_votes": null,
+      "annotator_agreement": null,
+      "grade": null,
+      "downgrade_reasons": []
+    },
+    {
+      "excerpt": "Kompakter als erwartet: geleert fallen die Würfel auf ein Drittel zusammen, im Schrank kaum Platz nötig.",
+      "source_url": "https://amazon-reviews-2023.github.io/",
+      "language": "de",
+      "published_on": "2023-09-01",
+      "level": "L1",
+      "sample_size": 1,
+      "stance": "support",
+      "is_demo_data": true,
+      "dedup": {
+        "cluster_id": 16,
+        "dup_count": 1,
+        "is_canonical": true
+      },
+      "stance_votes": null,
+      "annotator_agreement": null,
+      "grade": null,
+      "downgrade_reasons": []
+    },
+    {
+      "excerpt": "Ich liebe die Innentasche mit Reißverschluss für Wertsachen, Pass und Geld bleiben bei der Kontrolle griffbereit.",
+      "source_url": "https://amazon-reviews-2023.github.io/",
+      "language": "de",
+      "published_on": "2023-06-18",
+      "level": "L1",
+      "sample_size": 1,
+      "stance": "support",
+      "is_demo_data": true,
+      "dedup": {
+        "cluster_id": 17,
+        "dup_count": 1,
+        "is_canonical": true
+      },
+      "stance_votes": null,
+      "annotator_agreement": null,
+      "grade": null,
+      "downgrade_reasons": []
+    },
+    {
+      "excerpt": "Zwei Jahre im Einsatz, nur die weiße Beschriftung ist verblasst – für den Preis habe ich nichts Besseres gefunden.",
+      "source_url": "https://amazon-reviews-2023.github.io/",
+      "language": "de",
+      "published_on": "2023-10-15",
+      "level": "L1",
+      "sample_size": 1,
+      "stance": "support",
+      "is_demo_data": true,
+      "dedup": {
+        "cluster_id": 18,
+        "dup_count": 1,
+        "is_canonical": true
+      },
+      "stance_votes": null,
+      "annotator_agreement": null,
+      "grade": null,
+      "downgrade_reasons": []
+    },
+    {
+      "excerpt": "Die Würfel lassen sich in die vorhandenen Kofferfächer einschieben wie Schubladen, auspacken ohne Chaos.",
+      "source_url": "https://amazon-reviews-2023.github.io/",
+      "language": "de",
+      "published_on": "2023-05-08",
+      "level": "L1",
+      "sample_size": 1,
+      "stance": "support",
+      "is_demo_data": true,
+      "dedup": {
+        "cluster_id": 19,
+        "dup_count": 1,
+        "is_canonical": true
+      },
+      "stance_votes": null,
+      "annotator_agreement": null,
+      "grade": null,
+      "downgrade_reasons": []
+    },
+    {
+      "excerpt": "Auch voll beladen behalten die Beutel ihre Form, der Stoff gibt nicht nach und die Tragegriffe halten.",
+      "source_url": "https://amazon-reviews-2023.github.io/",
+      "language": "de",
+      "published_on": "2023-09-22",
+      "level": "L1",
+      "sample_size": 1,
+      "stance": "support",
+      "is_demo_data": true,
+      "dedup": {
+        "cluster_id": 20,
+        "dup_count": 1,
+        "is_canonical": true
+      },
+      "stance_votes": null,
+      "annotator_agreement": null,
+      "grade": null,
+      "downgrade_reasons": []
+    },
+    {
+      "excerpt": "Nach drei Wochen ist der Reißverschluss des größten Würfels schwergängig und verklemmt sich regelmäßig.",
+      "source_url": "https://amazon-reviews-2023.github.io/",
+      "language": "de",
+      "published_on": "2023-04-21",
+      "level": "L1",
+      "sample_size": 1,
+      "stance": "oppose",
+      "is_demo_data": true,
+      "dedup": {
+        "cluster_id": 21,
+        "dup_count": 1,
+        "is_canonical": true
+      },
+      "stance_votes": null,
+      "annotator_agreement": null,
+      "grade": null,
+      "downgrade_reasons": []
+    },
+    {
+      "excerpt": "Für Handgepäck bei Billigairlines sind die Maße knapp: mit gefüllten Würfeln war mein Koffer über dem Limit.",
+      "source_url": "https://amazon-reviews-2023.github.io/",
+      "language": "de",
+      "published_on": "2023-05-15",
+      "level": "L1",
+      "sample_size": 1,
+      "stance": "oppose",
+      "is_demo_data": true,
+      "dedup": {
+        "cluster_id": 22,
+        "dup_count": 1,
+        "is_canonical": true
+      },
+      "stance_votes": null,
+      "annotator_agreement": null,
+      "grade": null,
+      "downgrade_reasons": []
+    },
+    {
+      "excerpt": "Die Nähte der kleinen Beutel haben nach dem ersten Urlaub nachgegeben, eine Kante ist bereits aufgerissen.",
+      "source_url": "https://amazon-reviews-2023.github.io/",
+      "language": "de",
+      "published_on": "2023-07-08",
+      "level": "L1",
+      "sample_size": 1,
+      "stance": "oppose",
+      "is_demo_data": true,
+      "dedup": {
+        "cluster_id": 23,
+        "dup_count": 1,
+        "is_canonical": true
+      },
+      "stance_votes": null,
+      "annotator_agreement": null,
+      "grade": null,
+      "downgrade_reasons": []
+    },
+    {
+      "excerpt": "Qualität entspricht nicht dem Preis: dünner Stoff, der sich beim Packen sofort falten und knautschen lässt.",
+      "source_url": "https://amazon-reviews-2023.github.io/",
+      "language": "de",
+      "published_on": "2023-06-02",
+      "level": "L1",
+      "sample_size": 1,
+      "stance": "oppose",
+      "is_demo_data": true,
+      "dedup": {
+        "cluster_id": 24,
+        "dup_count": 1,
+        "is_canonical": true
+      },
+      "stance_votes": null,
+      "annotator_agreement": null,
+      "grade": null,
+      "downgrade_reasons": []
+    },
+    {
+      "excerpt": "Der mittlere Beutel fasst weniger als die angegebenen Liter, ein Paar Schuhe plus Pullover füllt ihn schon komplett.",
+      "source_url": "https://amazon-reviews-2023.github.io/",
+      "language": "de",
+      "published_on": "2023-08-05",
+      "level": "L1",
+      "sample_size": 1,
+      "stance": "oppose",
+      "is_demo_data": true,
+      "dedup": {
+        "cluster_id": 25,
+        "dup_count": 1,
+        "is_canonical": true
+      },
+      "stance_votes": null,
+      "annotator_agreement": null,
+      "grade": null,
+      "downgrade_reasons": []
+    },
+    {
+      "excerpt": "Der Kunststoffgeruch der Netzfächer ist so präsent, dass ich Kleidung nur noch in den Stoffbeuteln lagern mag.",
+      "source_url": "https://amazon-reviews-2023.github.io/",
+      "language": "de",
+      "published_on": "2023-09-18",
+      "level": "L1",
+      "sample_size": 1,
+      "stance": "oppose",
+      "is_demo_data": true,
+      "dedup": {
+        "cluster_id": 26,
+        "dup_count": 1,
+        "is_canonical": true
+      },
+      "stance_votes": null,
+      "annotator_agreement": null,
+      "grade": null,
+      "downgrade_reasons": []
+    },
+    {
+      "excerpt": "Nach zwei Wäschen in der Maschine ist der Stoff eingelaufen, die Würfel passen nicht mehr ineinander.",
+      "source_url": "https://amazon-reviews-2023.github.io/",
+      "language": "de",
+      "published_on": "2023-08-22",
+      "level": "L1",
+      "sample_size": 1,
+      "stance": "oppose",
+      "is_demo_data": true,
+      "dedup": {
+        "cluster_id": 27,
+        "dup_count": 1,
+        "is_canonical": true
+      },
+      "stance_votes": null,
+      "annotator_agreement": null,
+      "grade": null,
+      "downgrade_reasons": []
+    },
+    {
+      "excerpt": "Die Maschen der Fächer sind zu grob gestrickt, feine Strümpfe ziehen sich an den Maschen fest.",
+      "source_url": "https://amazon-reviews-2023.github.io/",
+      "language": "de",
+      "published_on": "2023-07-15",
+      "level": "L1",
+      "sample_size": 1,
+      "stance": "oppose",
+      "is_demo_data": true,
+      "dedup": {
+        "cluster_id": 28,
+        "dup_count": 1,
+        "is_canonical": true
+      },
+      "stance_votes": null,
+      "annotator_agreement": null,
+      "grade": null,
+      "downgrade_reasons": []
+    },
+    {
+      "excerpt": "Nach dem Preis-Leistungs-Check enttäuschend: für denselben Betrag gibt es beim Discounter stabilere Sets.",
+      "source_url": "https://amazon-reviews-2023.github.io/",
+      "language": "de",
+      "published_on": "2023-09-05",
+      "level": "L1",
+      "sample_size": 1,
+      "stance": "oppose",
+      "is_demo_data": true,
+      "dedup": {
+        "cluster_id": 29,
+        "dup_count": 1,
+        "is_canonical": true
+      },
+      "stance_votes": null,
+      "annotator_agreement": null,
+      "grade": null,
+      "downgrade_reasons": []
     }
   ],
   "questions": [
-    {
-      "text": "演示样本中的好评者是否集中在休闲旅行场景？商务短差用户的诉求是否未被覆盖？",
-      "source": "基于 L1 演示样本的待验证假设"
-    },
-    {
-      "text": "「隔层省时」的好评能否复现为详情页首屏的量化卖点（如「3 秒找到护照」）？",
-      "source": "基于 L1 演示样本的待验证假设"
-    },
-    {
-      "text": "低价假设目前零 L1 证据——德国消费者是否把耐用性/材料/退换保障置于价格之上？需访谈验证。",
-      "source": "基于 L3 语境推断的待验证假设"
-    }
+    "（推断/待验证假设）演示场景：支持份额 0.7 的 95% 区间下界 0.52 刚过决定线——待验证：对德国买家整体是否成立？需扩大 L1 样本后复核。",
+    "（推断/待验证假设）演示场景：9 条反对证据集中在耐久与气味维度，不等于产品无缺陷。"
   ],
+  "generated_at": "2026-11-22T06:55:55.070452Z",
+  "decision": {
+    "state": "supported",
+    "gate_status": "pass",
+    "support_interval": {
+      "lo": 0.5212421254128505,
+      "hi": 0.833352517317562,
+      "n": 30
+    },
+    "oppose_interval": {
+      "lo": 0.166647482682438,
+      "hi": 0.4787578745871496,
+      "n": 30
+    },
+    "n_total": 30,
+    "n_l1": 30,
+    "n_polarized": 30,
+    "n_insufficient": 0,
+    "dedup_clusters": 30,
+    "dedup_duplicated": 0,
+    "power_note": "去重后有极性样本 30 过门禁；决定线：份额 ≥68% 才判决定性多数"
+  },
   "l2_cards": [],
   "l2_notice": null,
-  "generated_at": "2026-11-20T15:10:22Z"
+  "fixture_note": "由 scripts/gen_web_fixtures.py 从后端真实路由同源生成，勿手改；改 demo 数据或判定管道后重跑。",
+  "fixture_generated_at": "2026-11-22T06:55:55Z"
 }

@@ -39,7 +39,7 @@ from typing import Any
 import httpx
 
 from ..config import settings
-from ..domain.evidence import EvidenceCard, EvidenceLevel, resolve_stance
+from ..domain.evidence import EvidenceCard, EvidenceLevel, stance_of_card
 
 #: 站内搜索端点（规格来源与核验程度见模块 docstring）。
 ZHIHU_SEARCH_URL = "https://developer.zhihu.com/api/v1/content/zhihu_search"
@@ -141,7 +141,7 @@ def _parse_item(item: dict[str, Any]) -> ZhihuExtraction:
 
 
 def extraction_to_card(extraction: ZhihuExtraction) -> EvidenceCard:
-    """合规最小集 → L2 证据卡。stance 走 resolve_stance，不得手工指定。"""
+    """合规最小集 → L2 证据卡。stance 走 stance_of_card，不得手工指定。"""
     card = EvidenceCard(
         excerpt=extraction.excerpt,
         source_url=extraction.source_url,
@@ -155,7 +155,7 @@ def extraction_to_card(extraction: ZhihuExtraction) -> EvidenceCard:
 
 def resolve_stance_preserved(card: EvidenceCard) -> EvidenceCard:
     """单卡 stance 走 domain 规则（L2 必然 insufficient），不手工指定。"""
-    return replace(card, stance=resolve_stance([card]))
+    return replace(card, stance=stance_of_card(card))
 
 
 def _build_headers(secret: str) -> dict[str, str]:

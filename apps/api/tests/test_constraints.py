@@ -7,11 +7,13 @@ from datetime import date
 import pytest
 
 from crosspilot_api.domain.evidence import (
+    DecisionState,
     EvidenceCard,
     EvidenceLevel,
+    GateStatus,
     Stance,
     can_support_preference_claim,
-    resolve_stance,
+    decide,
 )
 from crosspilot_api.services.datasets import (
     REGISTRY,
@@ -37,7 +39,7 @@ def card(level: EvidenceLevel, stance: Stance = Stance.SUPPORT) -> EvidenceCard:
 def test_l2_alone_cannot_support_preference_claim() -> None:
     """硬约束 1：知乎（L2）单独不成立。"""
     assert can_support_preference_claim([card(EvidenceLevel.L2)]) is False
-    assert resolve_stance([card(EvidenceLevel.L2)]) is Stance.INSUFFICIENT
+    assert decide([card(EvidenceLevel.L2)]).state is DecisionState.INSUFFICIENT
 
 
 def test_l3_alone_cannot_support_preference_claim() -> None:
@@ -49,12 +51,26 @@ def test_l1_supports_claim() -> None:
 
 
 def test_conflict_is_preserved_not_smoothed() -> None:
-    """证据冲突必须保留，不得调和成单一结论。"""
+    """证据冲突必须保留、不得调和成单一结论。
+
+    ADR-0005（2026-11-22）：原「冲突→oppose」拆出四值枚举的 conflicting。
+    n=2 未过门禁时判定为 insufficient（公式化证据不足），但两份额区间的
+    重叠数据完整保留在 decision 中——冲突信息不丢失、可追溯（门禁与冲突
+    的区分是 R3 固定消费次序），过门禁的 conflicting 判定由
+    test_decision.py 的 20:10 / 15:15 用例覆盖。
+    """
     cards = [
         card(EvidenceLevel.L1, Stance.SUPPORT),
         card(EvidenceLevel.L1, Stance.OPPOSE),
     ]
-    assert resolve_stance(cards) is Stance.OPPOSE
+    decision = decide(cards)
+    assert decision.state is DecisionState.INSUFFICIENT
+    assert decision.gate_status is GateStatus.BELOW_MINIMUM
+    assert decision.support_interval is not None
+    assert decision.oppose_interval is not None
+    # 冲突数据可见：两份额区间均跨越 0.5 且相互重叠（未调和、未丢失）
+    assert decision.support_interval.lo <= 0.5 <= decision.support_interval.hi
+    assert decision.oppose_interval.lo <= 0.5 <= decision.oppose_interval.hi
 
 
 def test_evidence_card_requires_six_fields() -> None:

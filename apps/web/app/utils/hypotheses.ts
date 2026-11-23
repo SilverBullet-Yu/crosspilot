@@ -5,10 +5,11 @@
  * 不允许卡片携带「假设 ID」字段，因此前端用关键词匹配把卡片归到假设；
  * 未匹配到任何假设的卡进「未归属证据」组，绝不静默丢弃。
  *
- * 每条假设的状态判定镜像后端 domain/evidence.py 的 resolve_stance（硬约束 1）：
- *   - 仅 L1 计入；L2（知乎）与 L3（宏观统计）不得单独支撑偏好结论；
- *   - L1 同时有支持与反对 → 冲突（红）；仅支持 → 有限支持（绿）；无 L1 → 缺少有效数据（黄）。
- *   证据不足与证据冲突是两个必须可见的产品状态，不得合并或降级为灰字。
+ * 每条假设的状态为**组级展示状态**（硬约束 1：仅 L1 计入）——不是判定管道输出。
+ * ADR-0005（2026-11-22）：判定唯一出口是包络 stance 的四值 DecisionState
+ * （Wilson 区间 + 门禁公式）；假设组内样本量低于判定门禁，套用判定公式会
+ * 塌缩为 insufficient，故组级只做布尔并集展示：有支持有反对 → conflict（红），
+ * 仅支持 → support（绿），无 L1 → insufficient（黄）。三态禁止灰字弱化。
  */
 import type { ValidEvidenceCard } from "./evidence-schema"
 
@@ -59,13 +60,18 @@ export const HYPOTHESES: Hypothesis[] = [
   },
 ]
 
-/** 假设状态：与横幅三态一致（绿/红/黄），禁止灰字弱化 */
+/**
+ * 假设状态：与横幅三态一致（绿/红/黄），禁止灰字弱化。
+ * 组级标签描述**组内构成**，不复用判定带结论词——避免 limited 场景
+ * （判定=已有有限支持/绿）与组级「证据相互冲突」红字打架：
+ * 判定唯一出口是包络 stance（ADR-0005 R1），组级只是展示口径。
+ */
 export type HypothesisStatus = "support" | "conflict" | "insufficient"
 
 export const STATUS_META: Record<HypothesisStatus, { label: string; cls: string }> = {
-  support: { label: "已有有限支持", cls: "status--ok" },
-  conflict: { label: "证据相互冲突", cls: "status--bad" },
-  insufficient: { label: "缺少有效数据", cls: "status--warn" },
+  support: { label: "有一手支持", cls: "status--ok" },
+  conflict: { label: "支持 / 反对并存", cls: "status--bad" },
+  insufficient: { label: "缺 L1 一手反馈", cls: "status--warn" },
 }
 
 /** 单条假设下的三组证据（支持/相反/缺失） */
@@ -75,7 +81,7 @@ export interface HypothesisGroups {
   oppose: ValidEvidenceCard[]
   /** 缺失证据组：不支撑结论的卡（L2/L3、无立场卡），展示时逐一标注「不支撑结论」 */
   missing: ValidEvidenceCard[]
-  /** 镜像 resolve_stance 的状态 */
+  /** 组级展示状态（非判定管道输出，见文件头注释） */
   status: HypothesisStatus
   /** 状态细分说明（用于徽标下的小字说明，如「仅存在反对证据」） */
   statusNote: string
@@ -105,7 +111,7 @@ export function matchHypothesis(card: ValidEvidenceCard): Hypothesis | null {
   return null
 }
 
-/** 镜像 domain/evidence.py 的 resolve_stance（仅 L1 计入） */
+/** 组级布尔并集展示（仅 L1 计入；不套 Wilson 门禁——组内样本低于判定门禁） */
 export function resolveHypothesisStatus(cards: ValidEvidenceCard[]): {
   status: HypothesisStatus
   statusNote: string

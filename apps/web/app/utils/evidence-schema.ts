@@ -15,8 +15,27 @@
 /** 证据层级（domain/evidence.py: EvidenceLevel） */
 export type EvidenceLevel = "L1" | "L2" | "L3"
 
-/** 立场（domain/evidence.py: Stance） */
+/** 卡级立场信号（domain/evidence.py: Stance；判定管道的输入，非判定输出） */
 export type EvidenceStance = "support" | "oppose" | "insufficient"
+
+/**
+ * 判定状态（domain/evidence.py: DecisionState，ADR-0005 R1 唯一判定枚举）。
+ * 包络 stance 字段用四值：原「冲突→oppose」拆出 conflicting，不降级不并值。
+ */
+export type DecisionState = "supported" | "refuted" | "insufficient" | "conflicting"
+
+/** 卡面去重结果（domain: DedupInfo，R2 管道产物） */
+export interface CardDedup {
+  cluster_id: number
+  dup_count: number
+  is_canonical: boolean
+}
+
+/** 多标注器立场票（ADR-0005 两票制；llm=null 为缺席，R6 显式传播） */
+export interface CardStanceVotes {
+  rule: EvidenceStance
+  llm: EvidenceStance | null
+}
 
 /** 校验通过的证据卡（六必现字段齐备，可渲染） */
 export interface ValidEvidenceCard {
@@ -28,6 +47,12 @@ export interface ValidEvidenceCard {
   sample_size: number | null
   stance: EvidenceStance
   is_demo_data: boolean
+  // ---- ADR-0005 卡级扩展字段（全 optional，向后兼容）----
+  dedup?: CardDedup | null
+  stance_votes?: CardStanceVotes | null
+  annotator_agreement?: boolean | null
+  grade?: "high" | "moderate" | "low" | "very-low" | null
+  downgrade_reasons?: string[]
 }
 
 /** 校验不通过的卡：保存原因与原始数据，供占位说明展示 */
@@ -50,6 +75,12 @@ const ALLOWED_KEYS = new Set([
   "sample_size",
   "stance",
   "is_demo_data",
+  // ADR-0005 卡级扩展字段（全 optional）
+  "dedup",
+  "stance_votes",
+  "annotator_agreement",
+  "grade",
+  "downgrade_reasons",
 ])
 
 /** 判定日期字符串是否为 YYYY-MM-DD 且真实存在（防止 V8 把 2026-02-30 滚动解析为 03-02） */
@@ -133,6 +164,58 @@ export function validateEvidenceCard(raw: unknown): CardValidation {
     }
   }
 
+  // ADR-0005 卡级扩展字段轻校验（optional；出现时结构须合规，缺失按 null/空 处理）
+  const dedup = (rawObj.dedup ?? null) as CardDedup | null
+  if (dedup !== null) {
+    const d = dedup as Record<string, unknown>
+    if (
+      typeof d !== "object" ||
+      !Number.isInteger(d.cluster_id) ||
+      (d.cluster_id as number) < 0 ||
+      !Number.isInteger(d.dup_count) ||
+      (d.dup_count as number) < 1 ||
+      typeof d.is_canonical !== "boolean"
+    ) {
+      return {
+        ok: false,
+        invalid: { errors: ["dedup 结构非法（须含 cluster_id≥0 / dup_count≥1 / is_canonical）"], raw: rawObj },
+      }
+    }
+  }
+  const votes = (rawObj.stance_votes ?? null) as CardStanceVotes | null
+  if (votes !== null) {
+    const v = votes as Record<string, unknown>
+    const legalStance = (s: unknown) =>
+      s === "support" || s === "oppose" || s === "insufficient" || s === null
+    if (typeof v !== "object" || !legalStance(v.rule) || !legalStance(v.llm)) {
+      return {
+        ok: false,
+        invalid: { errors: ["stance_votes 结构非法（rule/llm 须为立场三值或 null）"], raw: rawObj },
+      }
+    }
+  }
+  const agreement = rawObj.annotator_agreement ?? null
+  if (agreement !== null && typeof agreement !== "boolean") {
+    return {
+      ok: false,
+      invalid: { errors: ["annotator_agreement 非法（须为布尔值或 null）"], raw: rawObj },
+    }
+  }
+  const grade = rawObj.grade ?? null
+  if (grade !== null && grade !== "high" && grade !== "moderate" && grade !== "low" && grade !== "very-low") {
+    return {
+      ok: false,
+      invalid: { errors: [`grade 非法（仅允许 high/moderate/low/very-low/null），实际: ${String(grade)}`], raw: rawObj },
+    }
+  }
+  const reasons = (rawObj.downgrade_reasons ?? []) as unknown[]
+  if (!Array.isArray(reasons) || !reasons.every((r) => typeof r === "string")) {
+    return {
+      ok: false,
+      invalid: { errors: ["downgrade_reasons 非法（须为字符串数组）"], raw: rawObj },
+    }
+  }
+
   return {
     ok: true,
     card: {
@@ -144,6 +227,11 @@ export function validateEvidenceCard(raw: unknown): CardValidation {
       sample_size: rawObj.sample_size as number | null,
       stance,
       is_demo_data: isDemo,
+      dedup,
+      stance_votes: votes,
+      annotator_agreement: agreement as boolean | null,
+      grade: grade as "high" | "moderate" | "low" | "very-low" | null,
+      downgrade_reasons: reasons as string[],
     },
   }
 }

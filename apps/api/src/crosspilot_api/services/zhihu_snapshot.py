@@ -26,7 +26,7 @@ from pathlib import Path
 from typing import Any
 
 from ..config import settings
-from ..domain.evidence import EvidenceCard, EvidenceLevel, resolve_stance
+from ..domain.evidence import EvidenceCard, EvidenceLevel, stance_of_card
 from .zhihu_client import (
     EXCERPT_MAX_CHARS,
     ZHIHU_SEARCH_URL,
@@ -79,7 +79,7 @@ def _require(condition: bool, message: str) -> None:
 def _parse_card(raw: Any, index: int) -> EvidenceCard:
     """单张快照卡 → EvidenceCard。字段缺失/类型不符直接抛错，不做部分降级。"""
     _require(isinstance(raw, dict), f"cards[{index}] 不是对象")
-    card_map: dict[str, Any] = raw  # type: ignore[assignment]  # isinstance 已收窄
+    card_map: dict[str, Any] = raw  # isinstance 已收窄
     missing = [key for key in _CARD_REQUIRED if key not in card_map]
     _require(not missing, f"cards[{index}] 缺字段: {missing}")
     excerpt = card_map["excerpt"]
@@ -124,11 +124,11 @@ def _parse_card(raw: Any, index: int) -> EvidenceCard:
         published_on=published_on,
         level=EvidenceLevel.L2,
         sample_size=sample_size,
-        stance=stance_value,  # type: ignore[arg-type]  # 枚举值已校验
+        stance=stance_value,  # 枚举值已校验
         is_demo_data=card_map["is_demo_data"],
     )
-    # stance 聚合一律走 domain 规则复核，不信任落盘值（L2 必然 insufficient）。
-    return replace(card, stance=resolve_stance([card]))
+    # stance 一律走 domain 规则复核，不信任落盘值（L2 必然 insufficient）。
+    return replace(card, stance=stance_of_card(card))
 
 
 def _load_document(path: Path) -> list[EvidenceCard]:
@@ -138,7 +138,7 @@ def _load_document(path: Path) -> list[EvidenceCard]:
     except (OSError, ValueError) as exc:
         raise SnapshotValidationError(f"快照文件无法读取或非合法 JSON: {exc}") from exc
     _require(isinstance(payload, dict), "快照顶层不是 JSON 对象")
-    doc: dict[str, Any] = payload  # type: ignore[assignment]  # isinstance 已收窄
+    doc: dict[str, Any] = payload  # isinstance 已收窄
     missing_top = [key for key in _TOP_LEVEL_KEYS if key not in doc]
     _require(not missing_top, f"快照顶层缺字段: {missing_top}")
     cards_raw = doc["cards"]

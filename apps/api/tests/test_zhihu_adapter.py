@@ -3,7 +3,7 @@
 覆盖面：
 - 快照：加载与 schema 校验、缺失/损坏 → 空列表 + 非空降级提示（ADR-0002 决策 4）、
   演示样例全量 is_demo_data=true、演示/真实标识不得混排、摘录 ≤300 红线。
-- 语义红线（硬约束 1）：L2 卡加入后 resolve_stance 结果不变（insufficient）。
+- 语义红线（硬约束 1）：L2 卡加入后 decide 判定不变（insufficient）。
 - live 适配器（全部走 httpx.MockTransport，零真实 API 调用）：无凭据明确报错、
   429 / Code=30001 → QuotaExhaustedError 且消息含降级指引、PII 与全文剔除、
   作者匿名化、鉴权失败、请求形状（Bearer + 秒级时间戳）。
@@ -22,7 +22,13 @@ import pytest
 from fastapi.testclient import TestClient
 
 from crosspilot_api.config import REPO_ROOT, settings
-from crosspilot_api.domain.evidence import EvidenceCard, EvidenceLevel, Stance, resolve_stance
+from crosspilot_api.domain.evidence import (
+    DecisionState,
+    EvidenceCard,
+    EvidenceLevel,
+    Stance,
+    decide,
+)
 from crosspilot_api.main import app
 from crosspilot_api.routers import evidence as evidence_router
 from crosspilot_api.services import zhihu_client, zhihu_snapshot
@@ -278,11 +284,11 @@ def test_l2_cards_do_not_change_stance() -> None:
         )
     ]
     l2_cards = [_l2_card()]
-    assert resolve_stance(l3_cards) is Stance.INSUFFICIENT
-    assert resolve_stance(l3_cards + l2_cards) is Stance.INSUFFICIENT
+    assert decide(l3_cards).state is DecisionState.INSUFFICIENT
+    assert decide(l3_cards + l2_cards).state is DecisionState.INSUFFICIENT
     # 即使 L2 卡被错误标成 support/oppose，聚合结果也不变
     aggressive_l2 = [replace(_l2_card(), stance=Stance.SUPPORT)]
-    assert resolve_stance(l3_cards + aggressive_l2) is Stance.INSUFFICIENT
+    assert decide(l3_cards + aggressive_l2).state is DecisionState.INSUFFICIENT
 
 
 def test_l2_card_stance_is_insufficient() -> None:

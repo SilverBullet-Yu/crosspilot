@@ -4,9 +4,9 @@
 
 首个固定场景：**中国消费品品牌 → 德国市场 → 非电器旅行收纳包 → 商品详情页首屏卖点验证**。
 
-产品形态是单页 Web 应用（三栏：企业假设 / 证据对照 / 验证动作），不是报告生成器。核心语义：L1 一手反馈支撑判定，L2 中文经验与 L3 监管/贸易语境只产出待验证问题；**证据不足与证据冲突都是必须显式可见的状态**，系统不编造结论。
+产品形态是工作台式 Web 应用（产品概览落地页 + 卖点验证工作台 + 历史验证项目），不是报告生成器。核心语义：L1 一手反馈支撑判定，L2 中文经验与 L3 监管/贸易语境只产出待验证问题；**证据不足与证据冲突都是必须显式可见的状态**，系统不编造结论。
 
-![真实快照场景：三栏对照 + 黄色「缺少有效数据」横幅](docs/demo/screenshots/scenario_real.png)
+![真实快照场景：工作台布局 + 黄色「缺少有效数据」横幅](docs/demo/screenshots/scenario_real.png)
 
 - 演示 Runbook 与验收清单：[docs/demo/演示说明.md](docs/demo/演示说明.md)（fixtures 模式离线可演，三场景直达）
 - 判定→建议→运营决定的闭环留痕：[docs/demo/validation_log.md](docs/demo/validation_log.md)
@@ -23,7 +23,7 @@
 | 3 | `bash scripts/dev.sh api` | 启动 FastAPI，默认 <http://127.0.0.1:8000/docs> |
 | 4 | `bash scripts/dev.sh web` | 启动 Nuxt，默认 <http://127.0.0.1:3000> |
 | 5 | `bash scripts/check.sh` | 提交前五道自检：ruff + mypy strict + 全量测试 + 数据区结构校验 + 时间覆盖校验 |
-| 6 | `bash scripts/check_web.sh` | 前端冒烟：37 断言（~15s），录屏/提交前必跑 |
+| 6 | `bash scripts/check_web.sh` | 前端冒烟：56 断言（~20s），录屏/提交前必跑 |
 
 Windows 下用 Git Bash 执行上述 `.sh`。
 
@@ -38,7 +38,7 @@ Windows 下用 Git Bash 执行上述 `.sh`。
 | `apps/api/` | FastAPI 后端：检索、立场抽取、证据分层、对照矩阵 | 后端 |
 | `apps/api/src/crosspilot_api/domain/` | 纯领域模型与规则，**不依赖框架和网络** | 后端 |
 | `apps/api/src/crosspilot_api/services/` | 外部数据源适配器（知乎、Amazon、Eurostat…） | 后端 |
-| `apps/web/` | Nuxt 4 + Vue 3 三栏单页应用 | 前端 |
+| `apps/web/` | Nuxt 4 + Vue 3 多页工作台前端（产品概览 / 卖点验证工作台 / 历史验证项目） | 前端 |
 | `packages/contracts/` | 前后端共享契约（证据卡 / 对照矩阵 JSON Schema） | 前后端共同 |
 | `data/sources/` | 外部数据唯一落地处（9 来源，每源四件套 + raw），见其 README | 数据负责人 |
 | `data/snapshots/` | 演示预跑快照，**Demo 只读这里**，不走实时网络 | 全员 |

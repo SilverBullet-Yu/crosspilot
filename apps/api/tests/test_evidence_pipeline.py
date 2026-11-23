@@ -37,7 +37,17 @@ CSV_PATH = REPO_ROOT / "data" / "sources" / "eu_safety_gate" / "safety_gate_de_a
 
 # evidence-card.schema.json 的字段约定（手写断言比 jsonschema 依赖更稳，.venv 未必有该库）
 CARD_REQUIRED = ("excerpt", "source_url", "language", "published_on", "level", "sample_size")
-CARD_ALLOWED = set(CARD_REQUIRED) | {"stance", "is_demo_data"}
+# ADR-0005 卡级扩展字段（全 optional）：dedup / stance_votes / annotator_agreement /
+# grade / downgrade_reasons；判定级字段（state/interval/gate）在包络 decision，不进卡。
+CARD_ALLOWED = set(CARD_REQUIRED) | {
+    "stance",
+    "is_demo_data",
+    "dedup",
+    "stance_votes",
+    "annotator_agreement",
+    "grade",
+    "downgrade_reasons",
+}
 OFFICIAL_URL_PREFIX = "https://ec.europa.eu/safety-gate-alerts/screen/webReport/alertDetail/"
 
 #: raw/ 原始 XML 不入库（.gitignore 策略，凭 provenance.csv 的 SHA-256 与 URL 复现）。
@@ -61,6 +71,23 @@ def assert_card_matches_schema(card: dict[str, Any]) -> None:
     assert isinstance(card["is_demo_data"], bool)
     assert str(card["source_url"]).startswith("https://")
     datetime.strptime(card["published_on"], "%Y-%m-%d")  # schema format=date
+    # ADR-0005 卡级扩展字段轻校验（optional；出现时结构须合规）
+    dedup = card.get("dedup")
+    if dedup is not None:
+        assert set(dedup) == {"cluster_id", "dup_count", "is_canonical"}
+        assert isinstance(dedup["cluster_id"], int) and dedup["cluster_id"] >= 0
+        assert isinstance(dedup["dup_count"], int) and dedup["dup_count"] >= 1
+        assert isinstance(dedup["is_canonical"], bool)
+    votes = card.get("stance_votes")
+    if votes is not None:
+        assert set(votes) == {"rule", "llm"}
+        assert votes["rule"] in {"support", "oppose", "insufficient"}
+        assert votes["llm"] in {"support", "oppose", "insufficient", None}
+    agreement = card.get("annotator_agreement")
+    assert agreement is None or isinstance(agreement, bool)
+    assert card.get("grade") in {None, "high", "moderate", "low", "very-low"}
+    reasons = card.get("downgrade_reasons")
+    assert isinstance(reasons, list) and all(isinstance(r, str) for r in reasons)
 
 
 def _read_subset_rows() -> list[dict[str, str]]:
@@ -161,8 +188,9 @@ def test_real_endpoint_envelope() -> None:
         resp = client.get("/api/evidence", params={"query": "puzzle"})
     assert resp.status_code == 200
     body = resp.json()
-    # 2026-11-21 执行者D 追加知乎 L2 两个可选字段（向后兼容），包络集合随之 +2；
-    # 既有八字段语义不变，断言强度不降（仍锁定全字段集合防漂移）。
+    # 2026-11-21 追加知乎 L2 两个可选字段（向后兼容）；2026-11-22 ADR-0005 判定链
+    # 追加 decision（判定级字段落包络，不进卡片 schema），包络集合随之 +3；
+    # 既有字段语义不变，断言强度不降（仍锁定全字段集合防漂移）。
     assert set(body) == {
         "query",
         "market",
@@ -172,6 +200,7 @@ def test_real_endpoint_envelope() -> None:
         "cards",
         "questions",
         "generated_at",
+        "decision",
         "l2_cards",
         "l2_notice",
     }
@@ -179,7 +208,13 @@ def test_real_endpoint_envelope() -> None:
     assert body["market"] == "de"
     assert body["data_mode"] == settings.data_mode
     assert body["scenario"] == "real"
-    assert body["stance"] == "insufficient"  # L3-only，恒为证据不足
+    assert body["stance"] == "insufficient"  # L3-only，恒为证据不足（gate=no_l1）
+    decision = body["decision"]
+    assert decision["state"] == "insufficient"
+    assert decision["gate_status"] == "no_l1"
+    assert decision["support_interval"] is None
+    assert decision["n_l1"] == 0
+    assert decision["power_note"]  # 功效注记非空（可追溯）
     assert body["cards"]
     for card in body["cards"]:
         assert_card_matches_schema(card)
@@ -200,30 +235,66 @@ def test_real_endpoint_empty_query_and_zero_hit() -> None:
 
 
 def test_demo_conflict_scenario() -> None:
+    """ADR-0005 三状态演示：15:15 去重后区间重叠 → conflicting（并排展示）。
+
+    两条重复摘录聚入既有簇（R2：计数不虚增），去重摘要进 decision 可追溯。
+    """
     with TestClient(app) as client:
         resp = client.get("/api/evidence/demo", params={"scenario": "conflict"})
     assert resp.status_code == 200
     body = resp.json()
     assert body["scenario"] == "demo_conflict"
     assert body["query"] == DEMO_QUERY
-    assert body["stance"] == "oppose"  # 冲突保留为 oppose，不降级为灰字
+    assert body["stance"] == "conflicting"  # 冲突为独立判定状态，不降级不并值
+    decision = body["decision"]
+    assert decision["state"] == "conflicting"
+    assert decision["gate_status"] == "pass"
+    assert decision["n_polarized"] == 30  # 去重后有极性样本
+    assert decision["dedup_clusters"] == 30
+    assert decision["dedup_duplicated"] == 2  # 两条重复摘录被并簇
+    # 区间重叠可见：两份额区间均含 0.5 附近（可追溯的冲突依据）
+    assert decision["support_interval"] is not None
+    assert decision["oppose_interval"] is not None
+    assert decision["support_interval"]["lo"] <= 0.5 <= decision["oppose_interval"]["hi"]
     stances = {card["stance"] for card in body["cards"]}
     assert stances == {"support", "oppose"}  # 支持与反对并存
+    assert len(body["cards"]) == 32  # 30 簇 + 2 条重复摘录
     assert all(card["is_demo_data"] for card in body["cards"])
     assert all(card["level"] == "L1" for card in body["cards"])
+    # 去重结果回填卡面：两条重复摘录 is_canonical=False（逐卡可审计）；
+    # 二者均并入被复制的 O1 簇 → 该簇 dup_count=3（复制 1 条 + 变体 1 条 + 原卡）
+    non_canonical = [
+        card for card in body["cards"] if card["dedup"] and not card["dedup"]["is_canonical"]
+    ]
+    assert len(non_canonical) == 2
+    assert all(card["dedup"]["dup_count"] == 3 for card in non_canonical)
     for card in body["cards"]:
         assert_card_matches_schema(card)
     assert body["questions"]
 
 
 def test_demo_limited_scenario() -> None:
+    """ADR-0005 三状态演示：21:9 过门禁、份额 0.7 下界 0.521 刚过决定线 → supported。
+
+    「有限支持」的公式化含义 = 支持占优但区间宽（0.52–0.83）。
+    """
     with TestClient(app) as client:
         resp = client.get("/api/evidence/demo", params={"scenario": "limited"})
     assert resp.status_code == 200
     body = resp.json()
     assert body["scenario"] == "demo_limited"
-    assert body["stance"] == "support"  # 已有有限支持
-    assert {card["stance"] for card in body["cards"]} == {"support"}
+    assert body["stance"] == "supported"  # 已有有限支持（公式判定，非文案修饰）
+    decision = body["decision"]
+    assert decision["state"] == "supported"
+    assert decision["gate_status"] == "pass"
+    assert decision["n_polarized"] == 30
+    assert decision["dedup_clusters"] == 30
+    assert decision["dedup_duplicated"] == 0
+    assert decision["support_interval"]["lo"] == pytest.approx(0.521, abs=1e-3)
+    assert decision["support_interval"]["hi"] == pytest.approx(0.833, abs=1e-3)
+    stances = {card["stance"] for card in body["cards"]}
+    assert stances == {"support", "oppose"}  # 21 support + 9 oppose
+    assert len(body["cards"]) == 30
     assert all(card["is_demo_data"] for card in body["cards"])
     for card in body["cards"]:
         assert_card_matches_schema(card)

@@ -1,0 +1,5 @@
+# GDELT 使用政策声明（官方原文逐字摘录）
+# 出处：https://www.gdeltproject.org/about.html 「Using GDELT」节
+# 提取日期：2026-11-23；页面完整留痕见同目录 gdelt-about-page.html（SHA-256 见 README 索引）
+
+The GDELT Project is an open platform for research and analysis of global society and thus all datasets released by the GDELT Project are available for unlimited and unrestricted use for any academic, commercial, or governmental use of any kind without fee.
