@@ -18,8 +18,7 @@
 | `safety_gate_de_alerts_2021_2026.csv` | 可追溯主表，**3,255 条**德国相关警报 |
 | `provenance.csv` | 按 raw 实际内容重建的留痕（303 个文件的 SHA-256）。**注意**：首轮在线抓取的 URL/状态码/耗时曾被重建流程覆盖，已不可恢复，见 manifest `provenance_online_lost` |
 | `provenance_from_raw.csv` | 重建留痕的独立副本；脚本已改为不再覆盖 `provenance.csv`（D-08） |
-| `provenance_resume.csv` | **只有表头**：README 早期所述 44 期在线补抓的调用明细未实际保留，缺口已在 manifest `provenance_gaps` 申报。raw 文件本身完整且哈希可核验 |
-| `manifest.json` | 机器可读元数据，`coverage_complete: true` |
+| `manifest.json` | 机器可读元数据，`coverage_complete: true`；44 期补抓的在线调用明细缺失见 `provenance_gaps` |
 | `raw/weekly_report_index.xml` | 周报索引原件 |
 | `raw/report_*.xml` | 302 份报告明细原件，共约 46MB |
 

@@ -103,8 +103,8 @@
 | `_scripts/validate_quality.py` | **质量回归校验**（主表主键唯一、raw 逐页完整、manifest 行数与实表一致、留痕哈希、在线留痕未被覆盖、空正文标记、全空字段声明、PII 计数无漂移、快照原始响应引用），补齐前两个校验器的盲区，已接入 `scripts/check.sh` |
 
 中断恢复的设计意图：原始响应一旦落盘就不再重抓。Safety Gate 首轮抓到 258 期被中断，用 `resume` 补 44 期（成功率 44/44），再 `rebuild` 得到完整主表，全程未重复下载已有期次。
-（留痕注意：该批补抓的**在线调用明细未保留**，`provenance_resume.csv` 只有表头，缺口已在
-`eu_safety_gate/manifest.json` 的 `provenance_gaps` 显式申报；`resume` 脚本现已改为无调用时不写空壳文件。）
+（留痕注意：该批补抓的**在线调用明细未保留**，缺口已在
+`eu_safety_gate/manifest.json` 的 `provenance_gaps` 显式申报；早期误留的空壳 `provenance_resume.csv` 已移除，`resume` 脚本无调用时不写空壳文件。）
 
 ## 四、未入库及原因
 

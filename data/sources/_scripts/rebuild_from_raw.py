@@ -233,10 +233,11 @@ def rebuild_safety_gate() -> int:
             "当前 provenance.csv 仅保证 raw 文件哈希可核验。"
             "脚本已改为把重建留痕另存 provenance_from_raw.csv，不再覆盖（D-08）"),
         "provenance_gaps": {
-            "provenance_resume.csv": (
-                "README 所述 44 期在线补抓的留痕未实际保留，文件只有表头；"
-                "该批次 raw 文件本身完整且哈希可核验，但在线调用明细已丢失。"
-                "resume_safety_gate.py 已改为无调用时不写空壳文件"),
+            "resume_online_calls": (
+                "README 所述 44 期在线补抓的在线调用明细未实际保留；"
+                "该批次 raw 文件本身完整且哈希可核验。"
+                "早期误留的 provenance_resume.csv 空壳已移除，"
+                "resume_safety_gate.py 无调用时不写空壳文件"),
         },
     })
     print(f"[safety_gate] {reports_fetched}/{len(reports)} 期 -> "
