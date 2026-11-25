@@ -25,27 +25,31 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import sys
+from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(REPO_ROOT / "apps" / "api" / "src"))  # noqa: E402  # 未安装为包，注入 src
+sys.path.insert(0, str(REPO_ROOT / "apps" / "api" / "src"))  # 未安装为包，注入 src
 
-from crosspilot_api.config import settings  # noqa: E402
-from crosspilot_api.services.zhihu_client import (  # noqa: E402
+from crosspilot_api.config import settings
+from crosspilot_api.services.zhihu_client import (
     QUOTA_GUIDANCE,
     REQUEST_COUNT,
     ZHIHU_SEARCH_URL,
+    QuotaExhaustedError,
     ZhihuCredentialError,
     ZhihuError,
     ZhihuExtraction,
     ZhihuNetworkError,
     ZhihuResponseError,
-    QuotaExhaustedError,
+    sanitize_excerpt,
     search_zhihu_extractions,
 )
-from crosspilot_api.services.zhihu_snapshot import (  # noqa: E402
+from crosspilot_api.services.zhihu_snapshot import (
     build_snapshot_document,
     sanitize_query_filename,
     snapshot_path,
@@ -76,12 +80,86 @@ def print_plan(query: str) -> Path:
     return target
 
 
-def write_snapshot(query: str, extractions: list[ZhihuExtraction]) -> Path:
-    """合规最小集 → 快照文档 → 落盘（覆盖既有文件前打印提示）。"""
+def raw_payload_path(query: str, captured_at: str) -> Path:
+    """脱敏原始响应的落盘路径（修复 D-09）。"""
+    return (snapshot_path(query).parent / "raw"
+            / f"{sanitize_query_filename(query)}_{captured_at}.json")
+
+
+def scrub_payload(payload: dict[str, Any]) -> dict[str, Any]:
+    """落盘前脱敏原始响应：剔除作者昵称、头像、认证信息与精选评论。
+
+    保留 Code/Message/Data 结构与 Item 的可核验字段（Title/ContentID/Url/
+    EditTime/统计数），使快照卡片可逐字复核；同时不把个人数据与全文评论
+    写进仓库（合规红线：不建全文库、作者匿名化）。
+    """
+    drop_keys = {
+        "AuthorName", "AuthorHeadline", "Author", "AuthorAvatarUrl",
+        "AvatarUrl", "Badge", "CommentInfoList", "AuthorUrlToken",
+        "AuthorID", "AuthorUserType",
+    }
+
+    def walk(node: Any) -> Any:
+        if isinstance(node, dict):
+            out: dict[str, Any] = {}
+            for k, v in node.items():
+                if k in drop_keys:
+                    out[k] = "[scrubbed]"
+                    continue
+                if k == "ContentText" and isinstance(v, str):
+                    # 不落全文：仅保留与摘录同口径的前 300 字符
+                    out[k] = sanitize_excerpt(v)
+                    continue
+                out[k] = walk(v)
+            return out
+        if isinstance(node, list):
+            return [walk(x) for x in node]
+        return node
+
+    return dict(walk(payload))
+
+
+def write_raw_payload(query: str, payload: dict[str, Any],
+                      captured_at: str) -> tuple[Path, str]:
+    """落盘脱敏原始响应，返回 (路径, SHA-256)。"""
+    target = raw_payload_path(query, captured_at)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    body = json.dumps(scrub_payload(payload), ensure_ascii=False,
+                      indent=2) + "\n"
+    target.write_text(body, encoding="utf-8")
+    digest = hashlib.sha256(body.encode("utf-8")).hexdigest()
+    return target, digest
+
+
+def write_snapshot(query: str, extractions: list[ZhihuExtraction], *,
+                   raw_ref: dict[str, Any] | None = None) -> Path:
+    """合规最小集 → 快照文档 → 落盘（覆盖既有文件前打印提示）。
+
+    raw_ref（D-09）：脱敏原始响应的引用（相对路径 + SHA-256），连同
+    freshness_note 与 completeness 一并写入，使消费端能逐字复核并正确
+    判断数据新鲜度。
+    """
     target = snapshot_path(query)
     if target.exists():
         print(f"提示：快照已存在，将覆盖 {target}")
     document = build_snapshot_document(extractions, is_demo_data=False)
+    captured_at = datetime.now(UTC).strftime("%Y-%m-%d")
+    document["captured_at"] = captured_at
+    document["freshness_note"] = (
+        f"captured_at={captured_at} 是 API 实际检索日，generated_at_utc 仅为"
+        "本文件生成时间；判断数据新鲜度一律以 captured_at 为准"
+    )
+    document["raw_payload_ref"] = raw_ref or {
+        "status": "missing",
+        "reason": "本次运行未取得原始响应",
+    }
+    document["completeness"] = {
+        "search_calls": 1,
+        "cards_kept": len(extractions),
+        "cards_excluded": 0,
+        "note": "由 capture_zhihu_snapshot.py 自动生成；排除项记入 excluded_cards",
+    }
+    document["excluded_cards"] = []
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_text(
         json.dumps(document, ensure_ascii=False, indent=2) + "\n",
@@ -114,8 +192,12 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
     print(f"本次真实调用将消耗 1 次知乎搜索额度（{QUOTA_GUIDANCE}）。")
+    captured_payload: dict[str, Any] = {}
     try:
-        extractions = search_zhihu_extractions(query, secret=secret)
+        extractions = search_zhihu_extractions(
+            query, secret=secret,
+            on_raw_payload=captured_payload.update,
+        )
     except QuotaExhaustedError as exc:
         print(f"错误：{exc}", file=sys.stderr)
         return 3
@@ -132,10 +214,27 @@ def main(argv: list[str] | None = None) -> int:
     if not extractions:
         # 零命中也是有效结果：落盘空 cards 的快照，避免演示期反复消耗额度重查。
         print("提示：检索零命中，落盘空快照（EmptyReason 语义见端点文档）。")
-    write_snapshot(query, extractions)
+
+    # 先落盘脱敏原始响应，再把引用写进快照（D-09：快照须可逐字复核）
+    captured_at = datetime.now(UTC).strftime("%Y-%m-%d")
+    raw_ref: dict[str, Any]
+    if captured_payload:
+        raw_path, digest = write_raw_payload(query, captured_payload, captured_at)
+        raw_ref = {
+            "status": "saved",
+            "path": raw_path.relative_to(REPO_ROOT).as_posix(),
+            "sha256": digest,
+            "scrubbed": ["作者昵称/头像/认证", "精选评论", "ContentText 截断至 300 字符"],
+        }
+        print(f"原始响应（已脱敏）：{raw_path}")
+    else:
+        raw_ref = {"status": "missing", "reason": "适配器未回调原始响应"}
+        print("警告：未取得原始响应，快照将标记 raw_payload_ref.status=missing")
+
+    write_snapshot(query, extractions, raw_ref=raw_ref)
     generated = sanitize_query_filename(query)
     print(f"完成：{len(extractions)} 张卡已写入 {target}（查询词 {query!r} → 文件 {generated}.json）")
-    print("提醒：路演中请主动说明数据截止时间（快照 generated_at_utc），优于被评委问出。")
+    print("提醒：路演中请主动说明数据截止时间（快照 captured_at），优于被评委问出。")
     return 0
 
 

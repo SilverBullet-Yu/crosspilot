@@ -28,7 +28,7 @@ echo "==> 安装依赖"
 "$PY" -m pip install -q --upgrade pip setuptools wheel
 "$PY" -m pip install -q \
   "fastapi>=0.115" "uvicorn[standard]>=0.32" "pydantic>=2.9" \
-  "httpx>=0.27" "sqlalchemy>=2.0" "psycopg[binary]>=3.2"
+  "httpx>=0.27"
 "$PY" -m pip install -q "pytest>=8.3" "ruff>=0.7" "mypy>=1.13"
 
 echo "==> 挂载源码路径"

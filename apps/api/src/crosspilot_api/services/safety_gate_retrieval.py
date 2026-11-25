@@ -82,7 +82,7 @@ def resolve_source_url(case_number: str, url_map: dict[str, str]) -> str:
 def _load_case_url_map(raw_dir: Path) -> dict[str, str]:
     """解析 raw/report_*.xml，建立 case_number → 官方公开通知页 URL 的映射。
 
-    已实测（2026-11-21）：302 期共 19,677 个 case_number，零冲突、零空 reference。
+    已实测（2026-11-21）：302 份报告共 19,677 个 case_number，零冲突、零空 reference。
     raw/ 目录不入库（ADR-0003），缺失时返回空映射并走降级 URL，不崩溃。
     """
     urls: dict[str, str] = {}
@@ -158,10 +158,18 @@ def get_snapshot() -> tuple[SafetyGateRecord, ...]:
 
 
 def warm_cache() -> None:
-    """服务启动时预热缓存。数据区文件缺失时不在启动期崩溃：查询期会再次尝试并显式报错。"""
+    """服务启动时预热缓存。数据区文件缺失或格式异常时不在启动期崩溃。
+
+    捕获范围需覆盖整条构建链路的全部失败模式，否则启动期会崩在 lifespan：
+    - OSError：主表 / raw 目录缺失或不可读；
+    - ValueError：publication_date 非 DD/MM/YYYY（parse_publication_date）、
+      _build_record 必填字段缺失、EvidenceCard.__post_init__ 六字段校验；
+    - ParseError：raw XML 结构损坏（_load_case_url_map，ElementTree.ParseError）。
+    预热失败不改变语义：查询期 get_snapshot 会再次尝试并把真实异常抛给调用方。
+    """
     try:
         get_snapshot()
-    except OSError:
+    except (OSError, ValueError, ElementTree.ParseError):
         return
 
 

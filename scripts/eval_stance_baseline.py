@@ -12,9 +12,11 @@
   baseline_eval.md（保持既有口径不变）。
 - llm：services/stance_llm.py OpenAI 兼容端点（需 .env 配 LLM_API_BASE /
   LLM_API_KEY / LLM_MODEL 三项，缺一启动即报错退出，不消耗额度）；运行时故障
-  逐条回退规则基线并统计回退率；结果带磁盘缓存（data/sources/_eval_cache/，
-  sha256(文本) 为键，可中断续跑，两域共用），报告写 llm_baseline_eval.md，
-  不做两域自动重跑（成本守卫；两域对照分别跑，缓存使第二次只需补新增判定）。
+  逐条回退规则基线并统计回退率；输出的逐字摘录（evidence）须通过原文子串校验，
+  编造即回退并单列「摘录编造率」与「带可核验摘录率」；结果带磁盘缓存
+  （data/sources/_eval_cache/，sha256(文本) 为键，可中断续跑，两域共用），
+  报告写 llm_baseline_eval.md，不做两域自动重跑（成本守卫；两域对照分别跑，
+  缓存使第二次只需补新增判定）。
 
 输出：accuracy / 各类与宏平均 precision-recall-F1 / 混淆矩阵 / 错误类型小结，
 写入对应来源目录的报告并打印到 stdout。--classifier rule 且 --dataset marc 时
@@ -43,8 +45,8 @@ import random
 import re
 import sys
 from collections import Counter
+from collections.abc import Callable
 from pathlib import Path
-from typing import Callable
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT / "apps" / "api" / "src"))
@@ -187,7 +189,7 @@ def make_llm_classifier(
                 if line.strip():
                     rec = json.loads(line)
                     cache[str(rec["key"])] = str(rec["stance"])
-    stats = {"hit": 0, "fresh": 0, "fallback": 0}
+    stats = {"hit": 0, "fresh": 0, "fallback": 0, "fabricated_evidence": 0, "with_evidence": 0}
 
     def classify(text: str) -> Stance:
         key = hashlib.sha256(text.encode("utf-8")).hexdigest()
@@ -197,6 +199,12 @@ def make_llm_classifier(
         res = classify_stance_with_fallback(text)
         if res.fallback_used:
             stats["fallback"] += 1
+            # 摘录编造是 LLMResponseError 的一种，单列统计：它衡量的是模型
+            # 可追溯性而非链路可用性，与网络/HTTP 故障不同质，不可混计。
+            if "非原文逐字片段" in (res.fallback_reason or ""):
+                stats["fabricated_evidence"] += 1
+        elif res.evidence:
+            stats["with_evidence"] += 1
         stats["fresh"] += 1
         cache[key] = res.stance.value
         with cache_path.open("a", encoding="utf-8") as fh:
@@ -206,6 +214,7 @@ def make_llm_classifier(
                         "key": key,
                         "stance": res.stance.value,
                         "reason": res.reason,
+                        "evidence": res.evidence,
                         "model": res.model,
                         "fallback": res.fallback_used,
                     },
@@ -233,16 +242,26 @@ def write_llm_report(
     out_md = out_md.parent / "llm_baseline_eval.md"
     judged = stats["hit"] + stats["fresh"]
     fallback_rate = stats["fallback"] / judged if judged else 0.0
+    fresh = stats["fresh"]
+    fabricated = stats.get("fabricated_evidence", 0)
+    with_evidence = stats.get("with_evidence", 0)
+    fabricated_rate = fabricated / fresh if fresh else 0.0
+    evidence_rate = with_evidence / fresh if fresh else 0.0
     lines = [
         f"# {dataset['domain']} LLM 立场抽取评测结果",
         "",
         "- 评测日期：2026-11-21",
-        f"- 分类器：`services/stance_llm.py`（OpenAI 兼容 chat/completions，"
-        f"model=`{model}`，temperature=0，JSON 契约强制）",
-        f"- 判定数：{n_evaluated}（缓存命中 {stats['hit']} / 新调用 {stats['fresh']}；"
-        "缓存于 `data/sources/_eval_cache/`，可中断续跑）",
+        (f"- 分类器：`services/stance_llm.py`（OpenAI 兼容 chat/completions，"
+         f"model=`{model}`，temperature=0，JSON 契约强制）"),
+        (f"- 判定数：{n_evaluated}（缓存命中 {stats['hit']} / 新调用 {stats['fresh']}；"
+         "缓存于 `data/sources/_eval_cache/`，可中断续跑）"),
         (f"- 回退规则基线：{stats['fallback']} 条（{fallback_rate:.1%}）——网络/响应"
          "故障逐条回退并留痕，不编造立场"),
+        (f"- 逐字摘录编造：{fabricated} / {fresh} 次新调用（{fabricated_rate:.1%}）"
+         "——输出 evidence 非原文片段即判编造并回退，该比率衡量模型可追溯性，"
+         "与网络故障回退不同质，单列统计（缓存命中条不计入分母）"),
+        (f"- 带可核验摘录：{with_evidence} / {fresh} 次新调用（{evidence_rate:.1%}）"
+         "——通过原文子串校验，可直接填入证据卡「原文摘录」字段"),
         f"- 金标口径：{dataset['gold_rule']}",
         ("- 对照靶：规则基线同域结果见同目录 `baseline_eval.md`（餐厅域 accuracy "
          "0.610 / 商品域 0.580）；**LLM 方案的启用前提（ADR-0004）：至少在 oppose "

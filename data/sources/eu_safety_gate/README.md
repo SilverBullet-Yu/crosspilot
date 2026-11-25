@@ -16,19 +16,23 @@
 | 文件 | 说明 |
 |---|---|
 | `safety_gate_de_alerts_2021_2026.csv` | 可追溯主表，**3,255 条**德国相关警报 |
-| `provenance.csv` | 按 raw 实际内容重建的留痕（303 个文件的 SHA-256） |
-| `provenance_resume.csv` | 补抓 44 期的在线调用留痕（URL、状态码、耗时） |
+| `provenance.csv` | 按 raw 实际内容重建的留痕（303 个文件的 SHA-256）。**注意**：首轮在线抓取的 URL/状态码/耗时曾被重建流程覆盖，已不可恢复，见 manifest `provenance_online_lost` |
+| `provenance_from_raw.csv` | 重建留痕的独立副本；脚本已改为不再覆盖 `provenance.csv`（D-08） |
+| `provenance_resume.csv` | **只有表头**：README 早期所述 44 期在线补抓的调用明细未实际保留，缺口已在 manifest `provenance_gaps` 申报。raw 文件本身完整且哈希可核验 |
 | `manifest.json` | 机器可读元数据，`coverage_complete: true` |
 | `raw/weekly_report_index.xml` | 周报索引原件 |
-| `raw/report_*.xml` | 302 期明细原件，共约 46MB |
+| `raw/report_*.xml` | 302 份报告明细原件，共约 46MB |
 
 ## 三、覆盖情况
 
 | 项 | 值 |
 |---|---|
-| 窗口内周报期数 | **302 期**（2021-01-08 ~ 2026-11-20，每周五发布一期） |
-| 已抓取 | **302 期，缺 0 期** |
+| 窗口内报告数 | **302 份**（2021-01-08 ~ 2026-11-20；每周五发布，部分周可能停发） |
+| 已抓取 | **302 份，缺 0 份**（`manifest.reports_missing=0`，按报告文件口径） |
+| 按周更折算覆盖 | **299 个发布日 / 应有约 306 个周五 = 97.7%**（`validate_coverage.py` 口径） |
 | 德国相关警报 | 3,255 条 |
+
+说明：302 份报告对应 299 个发布日（部分发布日有多份报告）；「按周更折算」是覆盖密度口径，与「报告文件缺 0 份」不矛盾。
 
 **年份分布**
 
@@ -89,7 +93,7 @@
 | 明细 URL 直接拼 `/detail/xml/{id}?language=en` 返回 **400** | 必须带索引给出的 `search=WEB_REPORT%7C:%7C{id}` 参数 |
 | 索引中的链接是 HTML 转义的（`&amp;`）且尾部带逗号 | 取用前 `html.unescape()` 并 `rstrip(",")` |
 | 明细元素名是 `<notifications>`（**复数**） | 早期版本按单数匹配导致 0 条，已修正 |
-| 偶发 `URLError` | 3 次重试 + 退避；44 期中断后由 `resume_safety_gate.py` 补齐，成功率 44/44 |
+| 偶发 `URLError` | 3 次重试 + 退避；44 期中断后由 `resume_safety_gate.py` 补齐，成功率 44/44（**该批次在线调用留痕未保留**，见第二节与 manifest `provenance_gaps`） |
 
 ## 八、个人数据处理
 
@@ -97,10 +101,16 @@
 
 | 类型 | 替换为 | 校验结果 |
 |---|---|---|
-| 邮箱 | `[email-removed]` | 残留 0 处 |
-| 电话 | `[phone-removed]` | — |
+| 邮箱 | `[email-removed]` | 残留 0 处，命中 0 处 |
+| 电话 | `[phone-removed]` | 命中 36 处 |
 
-全表共 34 处替换。
+全表共 36 处替换，涉及 35 行。
+
+该计数由 `rebuild_from_raw.py` 自动生成并写入 `manifest.json` 的
+`pii_scrub_counts`，`validate_quality.py` 回归校验本节数字与 manifest、
+主表实测三者一致（修复 D-12）。
+（2026-11-24 修正：本节此前手写「34 处」，与主表实测 36 处不符——
+手写计数会随重抓漂移，现改为自动生成。）
 
 ## 九、复现方式
 

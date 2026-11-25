@@ -22,4 +22,7 @@ echo "==> 数据区结构校验"
 echo "==> 数据区时间覆盖校验"
 "$PY" data/sources/_scripts/validate_coverage.py
 
+echo "==> 数据区质量校验（主键/raw 完整性/留痕/PII 计数/快照）"
+"$PY" data/sources/_scripts/validate_quality.py
+
 echo "==> 全部通过"

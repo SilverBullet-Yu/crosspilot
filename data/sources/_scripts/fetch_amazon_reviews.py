@@ -84,6 +84,28 @@ RE_EMAIL = re.compile(r"[\w.+-]+@[\w-]+\.[\w.]+")
 RE_PHONE = re.compile(r"(?<!\d)(?:\+\d{1,3}[\s-]?)?(?:\d[\s-]?){7,14}\d(?!\d)")
 
 
+def review_id(dp: dict[str, object]) -> str:
+    """稳定评论 ID（修复 D-05）。
+
+    源数据没有原生 review_id，早期主表只能用 `(asin, timestamp_ms)` 这种弱
+    组合键去重，窗口内出现 61 个重复键。实测 `(user_id, asin, timestamp)`
+    在分片内可唯一区分 16,016/16,216 条记录，其余 200 条是源端重复投递
+    （198 条整条逐字段相同）。
+
+    ID 取该三元组的 sha1 前 16 位：
+    - 稳定可复现：同一条评论每次重建得到同一 ID；
+    - 不泄露 user_id：主表按数据最小化不写入 user_id（GDPR），哈希不可逆；
+    - 可用于下游去重、样本量统计与证据卡溯源。
+    """
+    key = "|".join([
+        str(dp.get("user_id") or ""),
+        str(dp.get("asin") or ""),
+        str(dp.get("timestamp") or ""),
+    ])
+    # sha1 在此仅作稳定标识（非安全用途）：不做认证、不防篡改
+    return hashlib.sha1(key.encode("utf-8")).hexdigest()[:16]
+
+
 def sha256_of(body: bytes) -> str:
     return hashlib.sha256(body).hexdigest()
 
@@ -376,13 +398,20 @@ def download_all(prov: Provenance, sizes: dict[str, int]) -> dict[str, str]:
     return status
 
 
-def load_meta_lookup() -> dict[str, tuple[str, str]]:
+def load_meta_lookup() -> tuple[dict[str, tuple[str, str]], dict[str, int]]:
     """parent_asin -> (item_title, price)。元数据是卖家自撰文案，只用于
-    标注商品名与价格，不得写入消费者证据侧。"""
+    标注商品名与价格，不得写入消费者证据侧。
+
+    D-05 价格字段核查（2026-11-24 实测）：meta 分片 641 条记录的 `price`
+    字段**全部为 JSON null**，并非联结逻辑写丢。因此 `price_usd` 全空是
+    上游分片的事实，不是本地缺陷；此处统计并回报可用价格数，由 manifest
+    与 README 如实声明，避免再被当作"待修复的联结 bug"。
+    """
     meta_path = RAW_DIR / "meta_categories" / f"meta_{META_SHARD}.jsonl"
     lookup: dict[str, tuple[str, str]] = {}
+    stats = {"meta_records": 0, "price_present": 0, "title_present": 0}
     if not meta_path.exists():
-        return lookup
+        return lookup, stats
     with meta_path.open(encoding="utf-8") as fh:
         for line in fh:
             line = line.strip()
@@ -392,27 +421,48 @@ def load_meta_lookup() -> dict[str, tuple[str, str]]:
                 dp = json.loads(line)
             except json.JSONDecodeError:
                 continue
+            stats["meta_records"] += 1
             parent = str(dp.get("parent_asin") or "")
+            raw_price = dp.get("price")
+            # 源端用 JSON null / "None" 表示缺价；统一归一为空串
+            price = "" if raw_price in (None, "", "None") else str(raw_price)
+            title = str(dp.get("title") or "")
+            if price:
+                stats["price_present"] += 1
+            if title:
+                stats["title_present"] += 1
             if parent:
-                lookup[parent] = (str(dp.get("title") or ""),
-                                  str(dp.get("price") or ""))
-    return lookup
+                lookup[parent] = (title, price)
+    return lookup, stats
 
 
-def build_main_table() -> tuple[int, int, dict[str, int], float]:
-    """从本地 raw 重建主表：窗口过滤 + PII 清洗 + meta 联结。
+def build_main_table() -> tuple[dict[str, object], dict[str, int], float]:
+    """从本地 raw 重建主表：窗口过滤 + 稳定 ID 去重 + PII 清洗 + meta 联结。
 
-    返回 (分片总行数, 窗口内写出行数, 年份分布, 时间覆盖密度)。
+    返回 (质量报告, 年份分布, 时间覆盖密度)。
     user_id 不写入主表（数据最小化，GDPR；原始分片留在 gitignore 的 raw/）。
+
+    D-05 处置：
+    - 新增 `review_id`（稳定哈希 ID）与 `is_empty_text` 标记列；
+    - 按 `review_id` 去重，而非弱组合键 `(asin, timestamp_ms)`；
+    - 空正文**不静默删除**，保留并以 `is_empty_text=True` 显式标记，
+      由下游按用途过滤；
+    - 输出去重前后行数报告，写入 manifest `quality_report`。
     """
     review_path = RAW_DIR / "review_categories" / f"{REVIEW_SHARD}.jsonl"
-    lookup = load_meta_lookup()
+    lookup, meta_stats = load_meta_lookup()
     start_ms, end_ms = window_ms()
 
-    rows: list[list[object]] = []
+    by_id: dict[str, list[object]] = {}
     total = 0
+    in_window = 0
+    dup_dropped = 0
+    dup_identical = 0
+    empty_text = 0
     years: dict[str, int] = {}
     dates: set[str] = set()
+    seen_payload: dict[str, str] = {}
+
     with review_path.open(encoding="utf-8") as fh:
         for line in fh:
             line = line.strip()
@@ -426,27 +476,45 @@ def build_main_table() -> tuple[int, int, dict[str, int], float]:
             ts = int(dp.get("timestamp") or 0)
             if not start_ms <= ts <= end_ms:
                 continue
+            in_window += 1
+
+            rid = review_id(dp)
+            payload = json.dumps(dp, sort_keys=True, ensure_ascii=False)
+            if rid in by_id:
+                # 源端重复投递：保留首条，统计丢弃数并区分是否逐字段相同
+                dup_dropped += 1
+                if seen_payload.get(rid) == payload:
+                    dup_identical += 1
+                continue
+            seen_payload[rid] = payload
+
             dt = datetime.fromtimestamp(ts / 1000, tz=UTC)
             date_iso = dt.strftime("%Y-%m-%d")
             dates.add(date_iso)
             years[date_iso[:4]] = years.get(date_iso[:4], 0) + 1
             parent = str(dp.get("parent_asin") or "")
             item_title, price = lookup.get(parent, ("", ""))
-            rows.append([
-                f"raw_review_{REVIEW_SHARD}", REVIEW_SHARD,
+            text = scrub(str(dp.get("text") or ""))[:TEXT_MAX]
+            is_empty = not text.strip()
+            if is_empty:
+                empty_text += 1
+            by_id[rid] = [
+                rid, f"raw_review_{REVIEW_SHARD}", REVIEW_SHARD,
                 str(dp.get("asin") or ""), parent,
                 item_title[:TITLE_MAX], price,
                 dp.get("rating"), scrub(str(dp.get("title") or ""))[:TITLE_MAX],
-                scrub(str(dp.get("text") or ""))[:TEXT_MAX],
-                ts, date_iso,
+                text, ts, date_iso,
                 bool(dp.get("verified_purchase")), int(dp.get("helpful_vote") or 0),
-            ])
-    rows.sort(key=lambda r: str(r[10]))
+                is_empty,
+            ]
+
+    rows = sorted(by_id.values(), key=lambda r: (str(r[11]), str(r[0])))
 
     write_csv(OUT / MAIN_TABLE, [
-        "shard", "category", "asin", "parent_asin", "item_title", "price_usd",
-        "rating", "title", "text", "timestamp_ms", "review_date",
-        "verified_purchase", "helpful_vote",
+        "review_id", "shard", "category", "asin", "parent_asin",
+        "item_title", "price_usd", "rating", "title", "text",
+        "timestamp_ms", "review_date", "verified_purchase", "helpful_vote",
+        "is_empty_text",
     ], rows)
 
     density = 0.0
@@ -454,7 +522,27 @@ def build_main_table() -> tuple[int, int, dict[str, int], float]:
         span = (datetime.strptime(max(dates), "%Y-%m-%d")
                 - datetime.strptime(min(dates), "%Y-%m-%d")).days + 1
         density = len(dates) / span
-    return total, len(rows), years, density
+
+    report: dict[str, object] = {
+        "shard_rows_total": total,
+        "rows_in_window_before_dedup": in_window,
+        "rows_after_dedup": len(rows),
+        "duplicates_dropped": dup_dropped,
+        "duplicates_byte_identical": dup_identical,
+        "duplicates_differing_fields": dup_dropped - dup_identical,
+        "dedup_key": "review_id = sha1(user_id|asin|timestamp)[:16]",
+        "dedup_key_note": ("源数据无原生 review_id；旧口径用弱组合键 "
+                           "(asin, timestamp_ms)，窗口内有 61 个重复键。"
+                           "改用含 user_id 的稳定哈希后重复键为 0"),
+        "empty_text_rows": empty_text,
+        "empty_text_policy": "保留并以 is_empty_text=True 标记，不静默删除",
+        "review_id_unique": len(rows) == len(by_id),
+        "price_usd_present": sum(1 for r in rows if str(r[6]).strip()),
+        "price_usd_note": ("meta 分片 price 字段上游全为 null（641/641），"
+                           "非联结缺陷；主表 price_usd 因此全空，不可用于价格分析"),
+        "meta_join": meta_stats,
+    }
+    return report, years, density
 
 
 def write_provenance_merged(prov: Provenance) -> Path:
@@ -496,7 +584,9 @@ def main() -> int:
         write_provenance_merged(prov)
         return 1
 
-    total, kept, years, density = build_main_table()
+    quality, years, density = build_main_table()
+    total = int(quality["shard_rows_total"])
+    kept = int(quality["rows_after_dedup"])
     write_provenance_merged(prov)
     sparse = density < MIN_DENSITY
     write_manifest(OUT, {
@@ -541,10 +631,15 @@ def main() -> int:
                             "留作官方站可达后的约束"),
         "pii_scrubbed": ["email", "phone"],
         "text_truncation": {"title": TITLE_MAX, "text": TEXT_MAX},
+        "quality_report": quality,
         "downloads": downloads,
     })
     print(f"[amazon] 分片 {total} 条，窗口内写出 {kept} 条；年份 {years}；"
           f"密度 {density:.1%}（{'SPARSE' if sparse else 'OK'}）")
+    print(f"[amazon] 去重丢弃 {quality['duplicates_dropped']} 条"
+          f"（逐字段相同 {quality['duplicates_byte_identical']}）；"
+          f"空正文标记 {quality['empty_text_rows']} 条；"
+          f"可用价格 {quality['price_usd_present']} 条")
     print(f"[amazon] 主表 {OUT / MAIN_TABLE}")
     return 0
 

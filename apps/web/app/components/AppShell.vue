@@ -2,9 +2,11 @@
 /**
  * 应用外壳 —— 左侧工作台导航 + 顶栏（面包屑 / 演示模式徽标 / 用户）。
  * 三页共用（产品概览 / 卖点验证工作台 / 历史验证项目）。
- * 插槽：#default 页面主区；#sidebar 页面级侧栏扩展（工作台页放「本次验证」导航与数据源 meta）。
+ * 插槽：#default 页面主区；#sidebar 页面级侧栏扩展。
  * 图标为内联 SVG 手绘（依赖最小化约束：不引入图标库）；侧栏可折叠为图标栏。
  */
+import ResearchGuide from "./ResearchGuide.vue"
+
 const route = useRoute()
 
 defineProps<{ /** 顶栏面包屑当前页名 */ crumb: string }>()
@@ -16,16 +18,41 @@ const NAV = [
 ] as const
 
 const collapsed = ref(false)
+const guideOpen = ref(false)
+const theme = ref<"day" | "night">("day")
 const isActive = (path: string) => route.path === path
+
+onMounted(() => {
+  const requested = route.query.theme
+  const saved = localStorage.getItem("crosspilot-theme")
+  theme.value = requested === "day" || requested === "night"
+    ? requested
+    : saved === "day" || saved === "night"
+      ? saved
+      : window.matchMedia("(prefers-color-scheme: dark)").matches ? "night" : "day"
+  document.documentElement.dataset.theme = theme.value
+})
+
+function toggleTheme() {
+  theme.value = theme.value === "day" ? "night" : "day"
+  document.documentElement.dataset.theme = theme.value
+  localStorage.setItem("crosspilot-theme", theme.value)
+}
+const modeLabel = computed(() => {
+  if (route.path !== "/workbench") return "演示模式 · Mock 数据"
+  return String(route.query.scenario ?? "real") === "real"
+    ? "真实快照 · 本地数据"
+    : "演示模式 · Mock 数据"
+})
 </script>
 
 <template>
-  <div class="shell" :class="{ 'shell--collapsed': collapsed }">
+  <div class="shell" :class="{ 'shell--collapsed': collapsed, 'shell--workbench': route.path === '/workbench' }">
     <aside class="sidebar">
       <NuxtLink to="/" class="side__logo" aria-label="CrossPilot 2.0 产品概览">
         <svg class="side__logomark" viewBox="0 0 24 24" aria-hidden="true">
           <circle cx="12" cy="12" r="10" fill="var(--accent)" />
-          <path d="M15.8 8.2 10.6 10.6 8.2 15.8 13.4 13.4Z" fill="#fff" />
+          <path d="M15.8 8.2 10.6 10.6 8.2 15.8 13.4 13.4Z" fill="var(--accent-ink)" />
         </svg>
         <span class="side__logotext">CrossPilot</span>
         <span class="side__logo-ver">2.0</span>
@@ -57,6 +84,7 @@ const isActive = (path: string) => route.path === path
           :key="n.path"
           :to="n.path"
           class="side__navitem"
+          :aria-label="n.label"
           :class="{ 'side__navitem--active': isActive(n.path) }"
         >
           <svg v-if="n.icon === 'home'" class="side__navicon" viewBox="0 0 16 16" aria-hidden="true">
@@ -80,6 +108,15 @@ const isActive = (path: string) => route.path === path
           </svg>
         </NuxtLink>
       </nav>
+
+      <button type="button" class="side__guide-button" @click="guideOpen = true">
+        <svg class="side__navicon" viewBox="0 0 16 16" aria-hidden="true">
+          <path d="M3 2.5h7a2 2 0 0 1 2 2v9H5a2 2 0 0 1-2-2v-9Z" fill="none" stroke="currentColor" stroke-width="1.3" />
+          <path d="M5 5h5M5 7.5h5M5 10h3" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" />
+        </svg>
+        <span class="side__navtext">研究方法与规则</span>
+        <span class="side__guide-arrow" aria-hidden="true">↗</span>
+      </button>
 
       <div class="side__slot">
         <slot name="sidebar" />
@@ -112,7 +149,23 @@ const isActive = (path: string) => route.path === path
           <span class="crumbs__page">{{ crumb }}</span>
         </nav>
         <div class="topbar__right">
-          <span class="modechip"><span class="modechip__dot" aria-hidden="true"></span>演示模式 · Mock 数据</span>
+          <button
+            type="button"
+            class="topbar__theme btn btn--ghost btn--sm"
+            :aria-label="theme === 'day' ? '切换至夜间皮肤' : '切换至日间皮肤'"
+            :title="theme === 'day' ? '切换至夜间皮肤' : '切换至日间皮肤'"
+            @click="toggleTheme"
+          >
+            <svg v-if="theme === 'day'" viewBox="0 0 20 20" aria-hidden="true">
+              <circle cx="10" cy="10" r="3.2" fill="none" stroke="currentColor" stroke-width="1.4" />
+              <path d="M10 1.8v2M10 16.2v2M1.8 10h2M16.2 10h2M4.2 4.2l1.4 1.4M14.4 14.4l1.4 1.4M15.8 4.2l-1.4 1.4M5.6 14.4l-1.4 1.4" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" />
+            </svg>
+            <svg v-else viewBox="0 0 20 20" aria-hidden="true">
+              <path d="M16.8 12.6A7.2 7.2 0 0 1 7.4 3.2a7.2 7.2 0 1 0 9.4 9.4Z" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round" />
+            </svg>
+            <span>{{ theme === "day" ? "日间" : "夜间" }}</span>
+          </button>
+          <span class="modechip"><span class="modechip__dot" aria-hidden="true"></span>{{ modeLabel }}</span>
           <span class="topbar__user" title="演示用户">我</span>
         </div>
       </header>
@@ -120,5 +173,6 @@ const isActive = (path: string) => route.path === path
         <slot />
       </main>
     </div>
+    <ResearchGuide :open="guideOpen" @close="guideOpen = false" />
   </div>
 </template>

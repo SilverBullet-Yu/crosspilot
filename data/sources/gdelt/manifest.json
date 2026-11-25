@@ -47,5 +47,7 @@
     "en_luggage_de_src/2022H1": 3,
     "en_luggage_de_src/2022H2": 11
   },
-  "rebuilt_from_raw": true
+  "rebuilt_from_raw": true,
+  "provenance_online_lost": true,
+  "provenance_note": "历史上 rebuild_from_raw 曾把 FROM_RAW 留痕写进 provenance.csv，覆盖了首轮在线抓取的 URL、状态码与耗时（含 429 限速记录），已不可恢复；当前 provenance.csv 仅保证 raw 文件哈希可核验。脚本已改为把重建留痕另存 provenance_from_raw.csv，不再覆盖（D-08）"
 }

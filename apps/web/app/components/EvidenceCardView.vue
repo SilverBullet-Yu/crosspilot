@@ -10,7 +10,12 @@
  */
 import type { ValidEvidenceCard } from "../utils/evidence-schema"
 
-const props = defineProps<{ card: ValidEvidenceCard }>()
+const props = defineProps<{
+  card: ValidEvidenceCard
+  anchor?: string
+  number?: number
+  highlighted?: boolean
+}>()
 
 const levelLabel: Record<string, string> = {
   L1: "L1 一手反馈",
@@ -29,7 +34,12 @@ const host = computed(() => {
 </script>
 
 <template>
-  <article class="card" :class="{ 'card--demo': card.is_demo_data }">
+  <article
+    :id="anchor"
+    class="card"
+    :class="{ 'card--demo': card.is_demo_data, 'card--focused': highlighted }"
+  >
+    <span v-if="number !== undefined" class="card__number num">{{ String(number).padStart(2, "0") }}</span>
     <span v-if="card.is_demo_data" class="card__ribbon">演示数据</span>
     <p class="card__excerpt">{{ card.excerpt }}</p>
     <div class="card__meta">

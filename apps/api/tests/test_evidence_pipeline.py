@@ -8,6 +8,7 @@ from __future__ import annotations
 import csv
 from datetime import date, datetime
 from typing import Any
+from xml.etree import ElementTree
 
 import pytest
 from fastapi.testclient import TestClient
@@ -31,6 +32,7 @@ from crosspilot_api.services.safety_gate_retrieval import (
     parse_publication_date,
     resolve_source_url,
     search_safety_gate,
+    warm_cache,
 )
 
 CSV_PATH = REPO_ROOT / "data" / "sources" / "eu_safety_gate" / "safety_gate_de_alerts_2021_2026.csv"
@@ -103,8 +105,9 @@ def _read_subset_rows() -> list[dict[str, str]]:
 def test_near_neighbor_filter_count() -> None:
     """品类过滤条数以 CSV 实际字符串为准：五品类合计 519。
 
-    README 写 488 = Toys 271 + Childcare 94 + Chemical products 66 + Clothing 57，
-    未计入 Hobby/sports equipment 31；按任务指定的五品类过滤，实际为 519。
+    历史错值 488 = Toys 271 + Childcare 94 + Chemical products 66 + Clothing 57，
+    漏计 Hobby/sports equipment 31；该错值已于 2026-11 回写 README 与交接页，
+    此处保留说明只为解释 519 的来历，不代表文档现状仍是 488。
     """
     assert len(NEAR_NEIGHBOR_CATEGORIES) == 5
     assert EXPECTED_NEAR_NEIGHBOR_COUNT == 519
@@ -328,3 +331,38 @@ def test_build_real_questions_marks_inference_layer() -> None:
     for questions in (build_real_questions("puzzle", 8), build_real_questions("", 0)):
         assert questions
         assert all("待验证" in question for question in questions)
+
+
+def test_warm_cache_swallows_data_errors_not_only_oserror(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """启动期预热必须吞掉整条构建链路的失败，而不只是 OSError。
+
+    回归用例：warm_cache 原先只捕 OSError，而 parse_publication_date 抛
+    ValueError、raw XML 损坏抛 ElementTree.ParseError、EvidenceCard 六字段
+    校验也抛 ValueError——这些会穿透 lifespan 让服务启动直接崩溃。
+    """
+    import crosspilot_api.services.safety_gate_retrieval as sg
+
+    for exc in (
+        OSError("主表缺失"),
+        ValueError("publication_date 非 DD/MM/YYYY"),
+        ElementTree.ParseError("raw XML 损坏"),
+    ):
+        monkeypatch.setattr(sg, "_snapshot", None)
+
+        def _boom(_exc: BaseException = exc) -> tuple[object, ...]:
+            raise _exc
+
+        monkeypatch.setattr(sg, "_load_snapshot", _boom)
+        warm_cache()  # 不得抛出：启动期容错是契约
+
+    # 预热失败不改变查询期语义：真实异常仍要抛给调用方，不静默返回空
+    monkeypatch.setattr(sg, "_snapshot", None)
+
+    def _raise_value_error() -> tuple[object, ...]:
+        raise ValueError("查询期须显式失败")
+
+    monkeypatch.setattr(sg, "_load_snapshot", _raise_value_error)
+    with pytest.raises(ValueError):
+        sg.get_snapshot()

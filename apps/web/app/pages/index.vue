@@ -24,6 +24,13 @@ const STEPS = [
   { no: "04", title: "启动下一轮验证", body: "带着问题和实验回到市场" },
 ]
 
+const SOURCE_LAYERS = [
+  { code: "L1", title: "一手消费者反馈", body: "消费者对商品的直接评价，是偏好判定的核心证据。", tag: "可判定", cls: "source--l1" },
+  { code: "L2", title: "从业经验与转述", body: "帮助发现问题与补充语境，不直接证明海外偏好。", tag: "待验证", cls: "source--l2" },
+  { code: "L3", title: "宏观与监管背景", body: "解释市场、贸易与监管环境，不代表个体购买动机。", tag: "背景", cls: "source--l3" },
+  { code: "M", title: "演示数据", body: "用于体验流程的模拟回填，始终带明确标识。", tag: "Mock", cls: "source--demo" },
+]
+
 /** 判定 → 建议动作（与演示说明 8.3 映射一致；三态语义色与工作台同源） */
 const ACTIONS = [
   { tag: "已有有限支持", cls: "tag--ok", action: "扩大样本复核后，再写入详情页卖点" },
@@ -111,12 +118,13 @@ const FAQS = [
       <!-- Hero：卖点之问 + 一次验证如何发生 -->
       <section class="hero">
         <div class="hero__copy">
+          <p class="hero__chapter num">01 / 从真实的人开始</p>
           <h1 class="hero__title">
             你的出海卖点，<br>真的符合<br>
             <span class="hero__accent">海外用户需求吗？</span>
           </h1>
           <p class="hero__lead">
-            CrossPilot 利用真实商品反馈与跨境从业经验，帮助品牌检验卖点假设、识别证据缺口，并制定下一步市场验证计划。
+            别把团队共识当成市场答案。CrossPilot 把消费者的原话、来源与样本边界放在同一张桌上，让每个卖点假设都能被验证。
           </p>
           <div class="hero__actions">
             <NuxtLink to="/workbench" class="btn btn--primary">开始验证 <span aria-hidden="true">→</span></NuxtLink>
@@ -134,7 +142,7 @@ const FAQS = [
               <span class="herocard__cap">
                 <svg class="herocard__capicon" viewBox="0 0 24 24" aria-hidden="true">
                   <circle cx="12" cy="12" r="10" fill="var(--accent)" />
-                  <path d="M15.8 8.2 10.6 10.6 8.2 15.8 13.4 13.4Z" fill="#fff" />
+                  <path d="M15.8 8.2 10.6 10.6 8.2 15.8 13.4 13.4Z" fill="var(--accent-ink)" />
                 </svg>
                 一次卖点验证，如何发生
               </span>
@@ -165,12 +173,16 @@ const FAQS = [
             </div>
           </div>
         </div>
+        <a class="hero__scroll" href="#method"><span>继续探索验证方法</span><span aria-hidden="true">↓</span></a>
       </section>
-
-      <!-- 方法四步（编号大卡） -->
-      <section class="method">
-        <h2 class="method__title">从“我认为”，到“有依据”。</h2>
-        <p class="method__sub">让每一个出海决策，都有可追溯的下一步。</p>
+      <section id="method" class="method chapter">
+        <header class="chapter__head">
+          <p class="chapter__no num">02 / 验证方法</p>
+          <div>
+            <h2 class="method__title">真正稀缺的不是数据，而是可追溯的判断。</h2>
+            <p class="method__sub">先提出假设，再让证据接受检验，最后把分歧变成下一轮验证。</p>
+          </div>
+        </header>
         <ol class="steps">
           <li v-for="s in STEPS" :key="s.no" class="step">
             <div class="step__no num">{{ s.no }}</div>
@@ -180,13 +192,34 @@ const FAQS = [
         </ol>
       </section>
 
-      <!-- 样本量 → 判定 交互演示器（产品真实公式） -->
-      <section class="method calc">
-        <div class="calc__head">
-          <h2 class="method__title">判定不是拍脑袋，是公式。</h2>
-          <span class="tag tag--demo">模拟示例 · 公式为产品真实口径</span>
+      <section class="source-map chapter">
+        <header class="chapter__head">
+          <p class="chapter__no num">03 / 证据分层</p>
+          <div>
+            <h2 class="method__title">不是所有证据，都有同等发言权。</h2>
+            <p class="method__sub">颜色代表证据角色，而不是装饰。L1 负责判断，L2 提出问题，L3 补充背景，Mock 只用于演示。</p>
+          </div>
+        </header>
+        <div class="source-grid">
+          <article v-for="source in SOURCE_LAYERS" :key="source.code" class="source-card" :class="source.cls">
+            <strong class="source-card__code num">{{ source.code }}</strong>
+            <span class="source-card__tag">{{ source.tag }}</span>
+            <h3>{{ source.title }}</h3>
+            <p>{{ source.body }}</p>
+          </article>
         </div>
-        <p class="method__sub">拖动滑块，看样本量与支持票数如何改变判定——演示器跑的就是工作台使用的 Wilson 95% 区间与门禁公式。</p>
+      </section>
+
+      <!-- 样本量 → 判定 交互演示器（产品真实公式） -->
+      <section class="method calc chapter">
+        <header class="chapter__head">
+          <p class="chapter__no num">04 / 判定口径</p>
+          <div>
+            <h2 class="method__title">判定不是拍脑袋，证据必须过门禁。</h2>
+            <span class="tag tag--demo">模拟示例 · 公式为产品真实口径</span>
+            <p class="method__sub">拖动滑块，看样本量与支持票数如何改变判定——演示器跑的就是工作台使用的 Wilson 95% 区间与门禁公式。</p>
+          </div>
+        </header>
 
         <div class="calc__card">
           <div class="calc__controls">
@@ -239,10 +272,11 @@ const FAQS = [
       </section>
 
       <!-- 工作台 CTA：判定 → 动作 -->
-      <section class="cta">
+      <section class="cta chapter">
         <div class="cta__head">
           <div>
-            <h2 class="cta__title">少一点猜测，多一点看得见的依据。</h2>
+            <p class="chapter__no num">05 / 下一步验证</p>
+            <h2 class="cta__title">每个发现，都应该变成下一步验证。</h2>
             <p class="cta__sub">假设、证据、行动，在同一个工作台完成。</p>
           </div>
           <NuxtLink to="/workbench" class="cta__link">进入工作台 ↗</NuxtLink>
@@ -259,9 +293,14 @@ const FAQS = [
       </section>
 
       <!-- FAQ（口径 = 演示说明 8.5 质疑预案） -->
-      <section class="method faq">
-        <h2 class="method__title">高频疑问，直接回答。</h2>
-        <p class="method__sub">与评委和卖家的问答口径一致，答案可追溯到 ADR-0005 与数据区 README。</p>
+      <section class="method faq chapter">
+        <header class="chapter__head">
+          <p class="chapter__no num">06 / 直接回答</p>
+          <div>
+            <h2 class="method__title">高频疑问，直接回答。</h2>
+            <p class="method__sub">与评委和卖家的问答口径一致，答案可追溯到 ADR-0005 与数据区 README。</p>
+          </div>
+        </header>
         <div class="faq__list">
           <details v-for="(f, i) in FAQS" :key="i" class="faq__item">
             <summary>

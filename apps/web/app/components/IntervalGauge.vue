@@ -2,8 +2,8 @@
 /**
  * Wilson 区间标尺（SVG，零依赖）—— 把判定依据画成可读仪表。
  * 来源：Awwwards SOTM 模式借鉴（Anime.js 刻度盘 + Oryzo 蓝图测量手柄）。
- * 两处用法共用一份几何：工作台判定带（variant="band"，深底亮线）
- * 与产品概览「样本量→判定」演示器（variant="plain"，浅底实色）。
+ * 两处用法共用一份几何：工作台判定带（variant="band"，跟随横幅皮肤）
+ * 与产品概览「样本量→判定」演示器（variant="plain"，跟随页面皮肤）。
  * 颜色纪律：支持=三态绿、反对=三态红、决定线中性——随 variant 取对应色板。
  * 无区间（门禁未过）时渲染空轨道 + 提示语，不虚构数据。
  */
@@ -37,11 +37,11 @@ const hasIntervals = computed(
 
 const ticks = [0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1]
 
-/* band（深底）/ plain（浅底）色板：轨道 / 刻度 / 标签 / 决定线 / 支持 / 反对 */
+/* band 跟随横幅皮肤；plain 跟随页面皮肤 */
 const C = computed(() =>
   props.variant === "band"
-    ? { track: "rgba(255,255,255,.22)", tick: "rgba(255,255,255,.28)", label: "rgba(255,255,255,.55)", decide: "rgba(255,255,255,.78)", support: "#4ade80", oppose: "#f87171", hint: "rgba(255,255,255,.62)", halo: "#16181b" }
-    : { track: "#d0d4da", tick: "#9aa1ab", label: "#9aa1ab", decide: "#16181b", support: "#1a7f4b", oppose: "#b91c1c", hint: "#5c6470", halo: "#ffffff" },
+    ? { track: "var(--line-strong)", tick: "var(--banner-faint)", label: "var(--banner-faint)", decide: "var(--banner-muted)", support: "var(--c-ok)", oppose: "var(--c-bad)", hint: "var(--banner-muted)", halo: "var(--banner-line)" }
+    : { track: "var(--line-strong)", tick: "var(--ink-faint)", label: "var(--ink-faint)", decide: "var(--ink-soft)", support: "var(--c-ok)", oppose: "var(--c-bad)", hint: "var(--ink-soft)", halo: "var(--panel)" },
 )
 </script>
 

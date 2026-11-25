@@ -45,7 +45,7 @@ REGISTRY: dict[str, DataSource] = {
     "amazon_reviews_2023": DataSource(
         "amazon_reviews_2023", "Apache-2.0", True, False,
         "L1 主数据栈，5.71 亿条。2026-11-21 试点已入库（data/sources/"
-        "amazon_reviews_2023/，全库最小分片 6207 条）。hf-mirror.com 镜像可达："
+        "amazon_reviews_2023/，全库最小分片去重后 6146 条）。hf-mirror.com 镜像可达："
         "api/tree 200/1.3s，/resolve/ 分片直下（302 至官方 CDN cas-bridge."
         "xethub.hf.co，本机可达，支持 Range）；/parquet 400（脚本加载型，无 "
         "parquet 分片）；镜像不代理 datasets-server，/rows /filter 不可用。"
@@ -89,7 +89,8 @@ REGISTRY: dict[str, DataSource] = {
     ),
     "eu_safety_gate": DataSource(
         "eu_safety_gate", "CC0-1.0", True, False,
-        "L3 德国侧监管端一手信号。2026-11-20 已入库 302/302 期、3255 条德国相关警报。"
+        "L3 德国侧监管端一手信号。2026-11-20 已入库 302 份报告（299 个发布日）、"
+        "3255 条德国相关警报。"
         "明细 URL 必须带 search=WEB_REPORT|:|{id} 否则 400；元素名为 notifications（复数）；"
         "danger/measures 已清洗邮箱与电话",
         Tier.L3, "P0",

@@ -25,13 +25,13 @@ const props = defineProps<{
 
 const SUBTITLE: Record<DecisionState, string> = {
   insufficient:
-    "目标市场一手消费者反馈（L1）为零样本或低于样本量门禁——以下对照仅基于 L3 语境或演示数据，不构成消费者偏好结论。",
+    "L1 一手反馈为零样本或低于门禁，当前对照不构成消费者偏好结论。",
   refuted:
-    "L1 一手消费者反馈中反对份额的 95% 区间下界过半（决定性多数反对）——支持侧原文仍并排呈现，不删除。",
+    "反对份额的 95% 区间下界过半；支持侧原文仍并排保留。",
   conflicting:
-    "L1 一手消费者反馈的支持与反对份额区间重叠（95% 置信下难分高下）——保留矛盾，支持/反对原文左右并排呈现，不做调和。",
+    "支持与反对区间重叠，暂难分高下；保留矛盾，不做调和。",
   supported:
-    "支持份额的 95% 区间下界刚过决定线，区间仍宽——结论需扩大样本复核，不宜直接写入详情页卖点。",
+    "支持区间下界刚过决定线但样本仍有限，需扩大样本复核。",
 }
 
 const bannerCls = computed(() =>
@@ -78,15 +78,26 @@ const isDemoScenario = computed(() => props.scenario !== "real")
   <section class="banner" :class="bannerCls" role="status">
     <div class="banner__main">
       <p class="banner__eyebrow">当前场景总体结论</p>
-      <h1 class="banner__title">{{ DECISION_LABEL[props.stance] }}</h1>
+      <h2 class="banner__title">{{ DECISION_LABEL[props.stance] }}</h2>
       <p class="banner__subtitle">{{ SUBTITLE[props.stance] }}</p>
     </div>
     <div class="banner__right">
-      <p v-if="traceText" class="banner__trace">{{ traceText }}</p>
-      <IntervalGauge variant="band" v-bind="gauge" />
-      <div class="banner__meta">
-        <span class="banner__meta-item">场景：{{ props.query }} → 德国市场</span>
+      <div class="banner__summary">
+        <span v-if="props.decision" class="banner__stat num">
+          n={{ props.decision.n_total }} · 门禁 {{ props.decision.gate_status }}
+        </span>
         <span v-if="isDemoScenario" class="banner__meta-item banner__demo-chip">演示场景 · 模拟回填</span>
+        <details class="banner__details">
+          <summary>判定依据</summary>
+          <div class="banner__detail-body">
+            <p class="banner__detail-subtitle">{{ SUBTITLE[props.stance] }}</p>
+            <p v-if="traceText" class="banner__trace">{{ traceText }}</p>
+            <IntervalGauge variant="band" v-bind="gauge" />
+            <div class="banner__meta">
+              <span class="banner__meta-item">场景：{{ props.query }} → 德国市场</span>
+            </div>
+          </div>
+        </details>
       </div>
     </div>
   </section>

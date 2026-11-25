@@ -165,11 +165,19 @@ export function validateEvidenceCard(raw: unknown): CardValidation {
   }
 
   // ADR-0005 卡级扩展字段轻校验（optional；出现时结构须合规，缺失按 null/空 处理）
-  const dedup = (rawObj.dedup ?? null) as CardDedup | null
-  if (dedup !== null) {
-    const d = dedup as Record<string, unknown>
+  // 先按 unknown 校验、通过后再收窄为目标类型：断言必须建立在已校验的事实上，
+  // 不能反向先断言成 CardDedup 再回退成 Record（那样断言无依据，且 tsc 报 TS2352）。
+  const dedupRaw = rawObj.dedup ?? null
+  let dedup: CardDedup | null = null
+  if (dedupRaw !== null) {
+    if (typeof dedupRaw !== "object") {
+      return {
+        ok: false,
+        invalid: { errors: ["dedup 结构非法（须为对象）"], raw: rawObj },
+      }
+    }
+    const d = dedupRaw as Record<string, unknown>
     if (
-      typeof d !== "object" ||
       !Number.isInteger(d.cluster_id) ||
       (d.cluster_id as number) < 0 ||
       !Number.isInteger(d.dup_count) ||
@@ -181,17 +189,33 @@ export function validateEvidenceCard(raw: unknown): CardValidation {
         invalid: { errors: ["dedup 结构非法（须含 cluster_id≥0 / dup_count≥1 / is_canonical）"], raw: rawObj },
       }
     }
+    dedup = {
+      cluster_id: d.cluster_id as number,
+      dup_count: d.dup_count as number,
+      is_canonical: d.is_canonical,
+    }
   }
-  const votes = (rawObj.stance_votes ?? null) as CardStanceVotes | null
-  if (votes !== null) {
-    const v = votes as Record<string, unknown>
+  const votesRaw = rawObj.stance_votes ?? null
+  let votes: CardStanceVotes | null = null
+  if (votesRaw !== null) {
+    if (typeof votesRaw !== "object") {
+      return {
+        ok: false,
+        invalid: { errors: ["stance_votes 结构非法（须为对象）"], raw: rawObj },
+      }
+    }
+    const v = votesRaw as Record<string, unknown>
     const legalStance = (s: unknown) =>
       s === "support" || s === "oppose" || s === "insufficient" || s === null
-    if (typeof v !== "object" || !legalStance(v.rule) || !legalStance(v.llm)) {
+    if (!legalStance(v.rule) || !legalStance(v.llm)) {
       return {
         ok: false,
         invalid: { errors: ["stance_votes 结构非法（rule/llm 须为立场三值或 null）"], raw: rawObj },
       }
+    }
+    votes = {
+      rule: v.rule as CardStanceVotes["rule"],
+      llm: (v.llm ?? null) as CardStanceVotes["llm"],
     }
   }
   const agreement = rawObj.annotator_agreement ?? null

@@ -197,7 +197,7 @@ function normalizeEnvelope(raw: unknown, dataSource: string): EvidenceEnvelope {
     stanceRaw === "insufficient" ||
     stanceRaw === "conflicting"
       ? stanceRaw
-      : fallbackDecision(cards)
+      : fallbackDecision(main.cards)
 
   // 判定可追溯数据（ADR-0005 DecisionOut）；旧夹具/旧端点缺失时为 null
   const decisionRaw = (typeof obj.decision === "object" && obj.decision !== null ? obj.decision : null) as

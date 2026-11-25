@@ -70,7 +70,6 @@ DE_TEST_URL = f"{HF_MIRROR}/datasets/{DATASET_ID}/resolve/main/de/test.jsonl"
 DE_VALIDATION_URL = f"{HF_MIRROR}/datasets/{DATASET_ID}/resolve/main/de/validation.jsonl"
 LOAD_SCRIPT_URL = f"{HF_MIRROR}/datasets/{DATASET_ID}/resolve/main/amazon_reviews_multi.py"
 DE_TREE_API_URL = f"{HF_MIRROR}/api/datasets/{DATASET_ID}/tree/main/de"
-TRAIN_URL = f"{HF_MIRROR}/datasets/{DATASET_ID}/resolve/main/de/train.jsonl"
 
 DE_TEST = RAW_DIR / "de_test_5000.jsonl"
 DE_VALIDATION = RAW_DIR / "de_validation_5000.jsonl"

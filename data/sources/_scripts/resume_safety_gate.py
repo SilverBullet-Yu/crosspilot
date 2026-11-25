@@ -49,10 +49,16 @@ def main() -> int:
             print(f"  {i}/{len(missing)} | 成功 {ok} 失败 {fail}")
         time.sleep(1.5)
 
-    # 单独写 resume 留痕，避免覆盖首轮抓取的 provenance.csv
+    # 单独写 resume 留痕，避免覆盖首轮抓取的 provenance.csv。
+    # 无调用时不写空壳文件（D-08）：只有表头的留痕文件会被误读成
+    # "补抓已留痕"，实际毫无信息量。
     import csv as _csv
 
     prov_path = OUT / "provenance_resume.csv"
+    if not prov.calls:
+        print("[resume] 本轮无在线调用，不写 provenance_resume.csv 空壳")
+        print(f"[resume] 补齐完成：成功 {ok}，失败 {fail}")
+        return 0
     with prov_path.open("w", newline="", encoding="utf-8") as fh:
         w = _csv.writer(fh)
         w.writerow(["source", "url", "http_status", "bytes", "elapsed_s",

@@ -18,7 +18,7 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install \
             "fastapi>=0.115" "uvicorn[standard]>=0.32" "pydantic>=2.9" \
-            "httpx>=0.27" "sqlalchemy>=2.0" "psycopg[binary]>=3.2" \
+            "httpx>=0.27" \
             "pytest>=8.3" "ruff>=0.7" "mypy>=1.13"
       - name: Lint
         run: ruff check apps/api

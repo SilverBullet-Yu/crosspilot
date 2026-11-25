@@ -10,6 +10,11 @@
 
 不学权重（零训练硬约束）：固定规则、每票来源可解释；precision 以
 GERestaurant / MARC 双域评测为准（eval_stance_baseline.py）。
+
+运行时接线状态（2026-11-25 审计）：本模块按 ADR-0005 A4 实现并由单测覆盖，
+但尚未接入 API 运行链路——生产默认仍是规则基线单标注器（卡面 llm=None）；
+待 LLM 凭据到位、启用 ensemble 评测档后再接入。当前为**显式预留模块**，
+不要在无 LLM 票的路径上调用它来凑两票。
 """
 
 from __future__ import annotations

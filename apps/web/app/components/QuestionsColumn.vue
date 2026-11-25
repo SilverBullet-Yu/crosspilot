@@ -1,15 +1,17 @@
 <script setup lang="ts">
-/**
- * 附录：待验证问题 + 静态「建议访谈问题」区。
- * - questions 逐条渲染并标注来源属性（如「基于 L3 监管信号推断」→ 属「待验证假设」层）；
- *   L2/L3 证据只能产出待验证问题，不得直接写入偏好结论；
- * - 静态区 3 条访谈问题 + 2 条详情页 A/B 测试方向，可直接人工执行。
- */
+import { ref } from "vue"
 import type { EvidenceQuestion } from "../composables/useEvidence"
 
 defineProps<{ questions: EvidenceQuestion[] }>()
 
-/** 静态区：建议访谈问题（可直接用于用户访谈） */
+type AdviceSection = "questions" | "interview" | "ab"
+const activeSection = ref<AdviceSection>("questions")
+const sections: Array<{ id: AdviceSection; label: string }> = [
+  { id: "questions", label: "待验证问题" },
+  { id: "interview", label: "访谈" },
+  { id: "ab", label: "A/B" },
+]
+
 const INTERVIEW_QUESTIONS = [
   {
     text: "您上一次打包行李时，最花时间的是哪一步？容量不够用和找不到东西，哪个更让您头疼？",
@@ -25,7 +27,6 @@ const INTERVIEW_QUESTIONS = [
   },
 ]
 
-/** 静态区：详情页信息排序 / 文案 A/B 测试方向（可直接执行） */
 const AB_TESTS = [
   {
     text: "首屏排序 A/B：首图卖点「31L 量化容量 + 机舱尺寸适配标识」vs「多隔层功能九宫格」，对比点击率与转化率。",
@@ -37,39 +38,73 @@ const AB_TESTS = [
 </script>
 
 <template>
-  <aside class="qcol">
-    <section class="qcol__block">
+  <div class="qcol">
+    <div class="qcol__tabs" role="tablist" aria-label="验证建议类型">
+      <button
+        v-for="section in sections"
+        :id="`qcol-tab-${section.id}`"
+        :key="section.id"
+        type="button"
+        role="tab"
+        :aria-selected="activeSection === section.id"
+        :aria-controls="`qcol-panel-${section.id}`"
+        :class="{ active: activeSection === section.id }"
+        @click="activeSection = section.id"
+      >
+        {{ section.label }}
+      </button>
+    </div>
+
+    <section
+      id="qcol-panel-questions"
+      v-show="activeSection === 'questions'"
+      class="qcol__block"
+      role="tabpanel"
+      aria-labelledby="qcol-tab-questions"
+    >
       <h2 class="qcol__heading">待验证问题 <span class="qcol__count">{{ questions.length }}</span></h2>
       <p class="qcol__hint">二手经验与宏观背景只产出待验证问题，不直接写入偏好结论。</p>
       <ol class="qcol__list">
-        <li v-for="(q, i) in questions" :key="i" class="qitem">
-          <p class="qitem__text">{{ q.text }}</p>
+        <li v-for="(question, index) in questions" :key="index" class="qitem">
+          <p class="qitem__text">{{ question.text }}</p>
           <p class="qitem__meta">
             <span class="qitem__layer">待验证假设</span>
-            <span class="qitem__source">来源属性：{{ q.source }}</span>
+            <span class="qitem__source">来源属性：{{ question.source }}</span>
           </p>
         </li>
       </ol>
     </section>
 
-    <section class="qcol__block qcol__block--static">
+    <section
+      id="qcol-panel-interview"
+      v-show="activeSection === 'interview'"
+      class="qcol__block"
+      role="tabpanel"
+      aria-labelledby="qcol-tab-interview"
+    >
       <h2 class="qcol__heading">建议访谈问题</h2>
       <p class="qcol__hint">可直接用于用户访谈执行。</p>
       <ol class="qcol__list">
-        <li v-for="(q, i) in INTERVIEW_QUESTIONS" :key="i" class="qitem">
-          <p class="qitem__text">{{ q.text }}</p>
-          <p class="qitem__meta"><span class="qitem__source">{{ q.why }}</span></p>
+        <li v-for="(question, index) in INTERVIEW_QUESTIONS" :key="index" class="qitem">
+          <p class="qitem__text">{{ question.text }}</p>
+          <p class="qitem__meta"><span class="qitem__source">{{ question.why }}</span></p>
         </li>
       </ol>
     </section>
 
-    <section class="qcol__block qcol__block--static">
+    <section
+      id="qcol-panel-ab"
+      v-show="activeSection === 'ab'"
+      class="qcol__block"
+      role="tabpanel"
+      aria-labelledby="qcol-tab-ab"
+    >
       <h2 class="qcol__heading">详情页测试方向（A/B 草稿）</h2>
       <ul class="qcol__list">
-        <li v-for="(t, i) in AB_TESTS" :key="i" class="qitem">
-          <p class="qitem__text">{{ t.text }}</p>
+        <li v-for="(test, index) in AB_TESTS" :key="index" class="qitem">
+          <p class="qitem__text">{{ test.text }}</p>
         </li>
       </ul>
     </section>
-  </aside>
+  </div>
 </template>

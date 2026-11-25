@@ -9,16 +9,16 @@
   "pilot_shard": "raw_review_Subscription_Boxes（全库最小评论分片，完整下载）",
   "meta_shard": "raw_meta_Subscription_Boxes",
   "shard_rows_total": 16216,
-  "rows_in_window": 6207,
+  "rows_in_window": 6146,
   "years_covered": [
     "2021",
     "2022",
     "2023"
   ],
   "year_counts": {
-    "2021": 3674,
-    "2022": 2066,
-    "2023": 467
+    "2021": 3643,
+    "2022": 2045,
+    "2023": 458
   },
   "time_coverage_density": 0.9146,
   "time_coverage_sparse": false,
@@ -55,6 +55,26 @@
   "text_truncation": {
     "title": 200,
     "text": 600
+  },
+  "quality_report": {
+    "shard_rows_total": 16216,
+    "rows_in_window_before_dedup": 6207,
+    "rows_after_dedup": 6146,
+    "duplicates_dropped": 61,
+    "duplicates_byte_identical": 59,
+    "duplicates_differing_fields": 2,
+    "dedup_key": "review_id = sha1(user_id|asin|timestamp)[:16]",
+    "dedup_key_note": "源数据无原生 review_id；旧口径用弱组合键 (asin, timestamp_ms)，窗口内有 61 个重复键。改用含 user_id 的稳定哈希后重复键为 0",
+    "empty_text_rows": 10,
+    "empty_text_policy": "保留并以 is_empty_text=True 标记，不静默删除",
+    "review_id_unique": true,
+    "price_usd_present": 0,
+    "price_usd_note": "meta 分片 price 字段上游全为 null（641/641），非联结缺陷；主表 price_usd 因此全空，不可用于价格分析",
+    "meta_join": {
+      "meta_records": 641,
+      "price_present": 0,
+      "title_present": 640
+    }
   },
   "downloads": {
     "all_categories.txt": "ok",

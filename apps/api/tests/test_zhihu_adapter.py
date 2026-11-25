@@ -49,8 +49,6 @@ from crosspilot_api.services.zhihu_snapshot import load_zhihu_snapshot, snapshot
 SAMPLE_SNAPSHOT = REPO_ROOT / "apps" / "api" / "tests" / "fixtures" / "zhihu" / "旅行收纳包.json"
 #: 演示样例所在的夹具目录（loader 的 SNAPSHOT_DIR 指到这里即可加载样例）。
 SAMPLE_SNAPSHOT_DIR = REPO_ROOT / "apps" / "api" / "tests" / "fixtures" / "zhihu"
-#: 真实快照（2026-11-18 CLI 采集成果转录，见 data/snapshots/README.md）。
-REAL_SNAPSHOT = REPO_ROOT / "data" / "snapshots" / "zhihu" / "旅行收纳包.json"
 
 #: 降级指引原文（ADR-0002 决策 4 + 任务约定文案）。
 GUIDANCE_FRAGMENT = "当前为实测 10 次/日，演示请切回 snapshot 模式"
@@ -523,3 +521,25 @@ def test_snapshot_path_sanitizes_illegal_characters() -> None:
     """查询词中的 Windows 非法字符被替换为下划线，落盘/读取不错位。"""
     assert snapshot_path("旅行收纳包").name == "旅行收纳包.json"
     assert snapshot_path('a/b:c*d').name == "a_b_c_d.json"
+
+
+def test_search_zhihu_forwards_timeout_to_inner_call() -> None:
+    """timeout_seconds 必须透传到真正发请求的内层，不得被静默忽略。
+
+    回归用例：search_zhihu 原先接收 timeout_seconds 却未传给
+    search_zhihu_extractions，调用方设置的超时完全失效，实际恒为内层默认
+    15s——这类「参数看起来生效、实际不生效」的静默失败最难排查。
+    """
+    captured: dict[str, float | None] = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        captured["timeout"] = request.extensions.get("timeout", {}).get("connect")
+        return httpx.Response(200, json=_payload([_item()]))
+
+    search_zhihu(
+        "旅行收纳包",
+        secret=FAKE_SECRET,
+        transport=httpx.MockTransport(handler),
+        timeout_seconds=3.5,
+    )
+    assert captured["timeout"] == 3.5

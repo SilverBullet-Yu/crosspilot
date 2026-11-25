@@ -19,7 +19,7 @@ oppose = 负面评价/不推荐，insufficient = 无极性信号或正负冲突�
 3. 从句切分：按标点与转折/并列标记（aber/doch/jedoch/sondern/und/oder/...）
    切分，各从句独立计分后求和，net>0 -> support，net<0 -> oppose，
    net==0 -> insufficient（无命中与正负打平均归为证据不足/冲突，与
-   domain/evidence.resolve_stance 的「冲突必须可见」哲学一致）。
+   domain/evidence.py 判定管道的「冲突必须可见」哲学一致）。
 
 已知局限（如实）：词典覆盖有限；"nicht nur lecker sondern auch ..." 类结构会
 误翻转；"kann ich nicht bestätigen" 类元否定不处理；讽刺/反语不可识别。餐厅域
@@ -140,12 +140,8 @@ _CLAUSE_MARKERS_FOLDED = frozenset(fold(w) for w in _CLAUSE_MARKERS)
 class RuleHit:
     """一条可解释的规则命中。"""
 
-    #: 从句序号（从 0 起）
-    clause_index: int
     #: 命中的词典词形（折叠后）
     word: str
-    #: 文本中实际出现的 token（折叠后）
-    surface: str
     #: 词典极性（翻转前）
     polarity: str  # "positive" | "negative"
     #: 是否被否定窗口翻转
@@ -222,7 +218,7 @@ def classify_stance(text: str) -> StanceResult:
     hits: list[RuleHit] = []
     score = 0
     clauses = split_clauses(text)
-    for idx, tokens in enumerate(clauses):
+    for tokens in clauses:
         snippet = " ".join(tokens)[:60]
         # 比较级负面：从句内 "besser" + (kann/könnte/mal/früher/...) 即差评句式
         comparative_neg = ("besser" in tokens
@@ -236,9 +232,7 @@ def classify_stance(text: str) -> StanceResult:
             if i + 1 < len(tokens) and (token, tokens[i + 1]) in _NEGATIVE_BIGRAMS:
                 score -= 1
                 hits.append(RuleHit(
-                    clause_index=idx,
                     word=f"{token} {tokens[i + 1]}",
-                    surface=f"{token} {tokens[i + 1]}",
                     polarity="negative",
                     negated=False,
                     rule="negative_bigram",
@@ -254,9 +248,7 @@ def classify_stance(text: str) -> StanceResult:
                 # 比较级规则翻转：直接按负面计分，不经否定窗口
                 score -= 1
                 hits.append(RuleHit(
-                    clause_index=idx,
                     word=word,
-                    surface=token,
                     polarity="positive",
                     negated=True,
                     rule="comparative_negative",
@@ -275,9 +267,7 @@ def classify_stance(text: str) -> StanceResult:
             delta = 1 if effective == "positive" else -1
             score += delta
             hits.append(RuleHit(
-                clause_index=idx,
                 word=word,
-                surface=token,
                 polarity=polarity,
                 negated=negated,
                 negator=negators_in_window[-1] if negators_in_window else None,

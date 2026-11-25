@@ -6,7 +6,7 @@
 
 产品形态是工作台式 Web 应用（产品概览落地页 + 卖点验证工作台 + 历史验证项目），不是报告生成器。核心语义：L1 一手反馈支撑判定，L2 中文经验与 L3 监管/贸易语境只产出待验证问题；**证据不足与证据冲突都是必须显式可见的状态**，系统不编造结论。
 
-![真实快照场景：工作台布局 + 黄色「缺少有效数据」横幅](docs/demo/screenshots/scenario_real.png)
+> 当前界面以实际运行与 [docs/demo/演示说明.md](docs/demo/演示说明.md) 第二节验收清单为准。
 
 - 演示 Runbook 与验收清单：[docs/demo/演示说明.md](docs/demo/演示说明.md)（fixtures 模式离线可演，三场景直达）
 - 判定→建议→运营决定的闭环留痕：[docs/demo/validation_log.md](docs/demo/validation_log.md)
@@ -44,10 +44,11 @@ Windows 下用 Git Bash 执行上述 `.sh`。
 | `data/snapshots/` | 演示预跑快照，**Demo 只读这里**，不走实时网络 | 全员 |
 | `data/licenses/` | 各数据源许可原件，交付时随作品说明提交 | 数据负责人 |
 | `docs/adr/` | 架构决策记录，一个决策一个文件，只增不改 | 决策人 |
-| `docs/demo/` | 演示 Runbook、录屏脚本、验证日志与三场景截图 | 全员 |
+| `docs/demo/` | 演示 Runbook、录屏脚本与验证日志 | 全员 |
 | `docs/devlog/` | 开发日志，赛事创作真实性佐证，**每日必填** | 全员 |
-| `docs/handover/` | 交接包：当前状态、待办、阻塞、联系人 | 当值负责人 |
 | `scripts/` | 一键脚本，不手敲长命令 | 全员 |
+
+> 交接状态、启用清单、PRD、调研与验收截图统一放在仓库外 `../handover/`，不随 GitHub 上传。
 
 ## 3. 不可协商的五条硬约束
 

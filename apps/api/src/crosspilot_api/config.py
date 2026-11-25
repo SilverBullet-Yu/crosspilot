@@ -13,10 +13,8 @@ REPO_ROOT = Path(__file__).resolve().parents[4]
 class Settings:
     data_mode: str = os.getenv("CROSSPILOT_DATA_MODE", "snapshot")
     zhihu_secret: str | None = os.getenv("ZHIHU_ACCESS_SECRET")
+    # 预留：UN Comtrade 适配器接入后使用（硬约束 4）
     comtrade_key: str | None = os.getenv("COMTRADE_SUBSCRIPTION_KEY")
-    database_url: str = os.getenv(
-        "DATABASE_URL", "postgresql://localhost:5432/crosspilot"
-    )
     snapshot_dir: Path = REPO_ROOT / "data" / "snapshots"
 
     # OpenAI 兼容文本推理端点（LLM 立场抽取用，ADR-0004）；三项齐备才可用

@@ -8,7 +8,7 @@
   多条结果的去重审计，不构成个人数据回存。
 - 适配器层剔除 PII（邮箱 / 电话）后才截断，保证占位符不会把真实联系方式挤出窗口。
 - 硬约束 1：产出 L2 证据卡，只能生成待验证问题，不得单独支撑偏好结论
-  （stance 一律走 domain.resolve_stance，不得手工指定）。
+  （stance 一律走 domain.stance_of_card，不得手工指定）。
 
 端点规格来源与核验程度（如实声明，不编造）：
 - 端点与响应结构取自本地文档副本（仓库外工作区的 zhihu/references/http-api.md，
@@ -32,6 +32,7 @@ from __future__ import annotations
 import hashlib
 import re
 import time
+from collections.abc import Callable
 from dataclasses import dataclass, replace
 from datetime import UTC, date, datetime
 from typing import Any
@@ -199,10 +200,17 @@ def search_zhihu_extractions(
     transport: httpx.BaseTransport | None = None,
     timeout_seconds: float = 15.0,
     base_url: str | None = None,
+    on_raw_payload: Callable[[dict[str, Any]], None] | None = None,
 ) -> list[ZhihuExtraction]:
     """执行站内搜索，返回合规最小集。测试经 transport 注入 mock 响应。
 
     secret 缺失直接抛 ZhihuCredentialError（不静默降级为空结果）。
+
+    on_raw_payload（修复 D-09）：可选回调，收到原始响应 JSON 时调用一次，
+    供捕获脚本落盘脱敏后的 raw payload。适配器自身仍不保留全文——回调是
+    调用方的显式选择，且落盘前必须由调用方做脱敏（见 capture 脚本的
+    scrub_payload）。回调异常**不被捕获**，会向上抛出：原始响应落盘失败
+    属于留痕缺陷，不应被静默忽略。
     """
     keyword = query.strip()
     if not keyword:
@@ -232,6 +240,8 @@ def search_zhihu_extractions(
         payload = response.json()
     except (httpx.HTTPStatusError, ValueError) as exc:
         raise ZhihuResponseError(f"知乎检索响应异常（HTTP {response.status_code}）: {exc}") from exc
+    if on_raw_payload is not None and isinstance(payload, dict):
+        on_raw_payload(payload)
     items = _check_payload(payload)
     return [_parse_item(item) for item in items]
 
@@ -250,5 +260,7 @@ def search_zhihu(
     """
     return [
         extraction_to_card(item)
-        for item in search_zhihu_extractions(query, secret=secret, transport=transport)
+        for item in search_zhihu_extractions(
+            query, secret=secret, transport=transport, timeout_seconds=timeout_seconds
+        )
     ]

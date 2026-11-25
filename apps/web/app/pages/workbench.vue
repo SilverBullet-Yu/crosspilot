@@ -1,36 +1,33 @@
 <script setup lang="ts">
-/**
- * 卖点验证工作台 —— 证据对照工作区（产品核心页）。
- * 主题场景：旅行收纳包 → 德国市场。
- *
- * 布局（2026-11-22 工作台改版，见 main.css tokens 注释）：
- *   外壳    AppShell（侧栏导航 + 面包屑顶栏）
- *   工具行  场景切换 + 产品×市场检索
- *   判定带  深色仪表带：总体结论 + 可追溯小字，第一眼可见；数据源/模式/时间进侧栏底部
- *   主体    证据分节面板（节头 + 统计瓦片 + 支持/反对左右对照）+ 未归属（默认收起）
- *   附录    中文侧经验（L2 · 知乎）+ 待验证问题
- *
- * URL 参数 ?scenario=real|conflict|limited 可直达指定场景（便于演示与验收）。
- */
-import { SCENARIOS, loadEvidenceEnvelope, DECISION_LABEL } from "../composables/useEvidence"
+import { SCENARIOS, loadEvidenceEnvelope } from "../composables/useEvidence"
 import type { ScenarioId, EvidenceEnvelope } from "../composables/useEvidence"
 import { HYPOTHESES, groupCardsByHypothesis, STATUS_META } from "../utils/hypotheses"
 import type { HypothesisStatus } from "../utils/hypotheses"
+import AppShell from "../components/AppShell.vue"
+import StanceBanner from "../components/StanceBanner.vue"
+import HypothesisEvidence from "../components/HypothesisEvidence.vue"
+import QuestionsColumn from "../components/QuestionsColumn.vue"
+import EvidenceCardView from "../components/EvidenceCardView.vue"
+import InvalidCardNotice from "../components/InvalidCardNotice.vue"
+import WorkbenchTour from "../components/WorkbenchTour.vue"
 
 const route = useRoute()
 const router = useRouter()
-
 const config = useRuntimeConfig()
-// NUXT_PUBLIC_API_BASE：空或 "fixtures" → 本地夹具；URL → 真实后端
 const apiBase = String(config.public.apiBase ?? "fixtures")
 
 const productInput = ref("旅行收纳包")
-const marketInput = ref("德国")
 const searchQuery = ref("旅行收纳包")
+const activeHypothesisId = ref(HYPOTHESES[0]?.id ?? "")
+const mobilePanel = ref<"hypotheses" | "evidence" | "actions">("evidence")
+const tourStep = ref<number | null>(null)
+const TOUR_KEY = "crosspilot.workbench.tour.v1"
+const copyFeedback = ref("")
+const checkedActions = reactive<Record<string, boolean>>({})
 
 const scenario = computed<ScenarioId>(() => {
-  const s = String(route.query.scenario ?? "real")
-  return s === "conflict" || s === "limited" ? s : "real"
+  const value = String(route.query.scenario ?? "real")
+  return value === "conflict" || value === "limited" ? value : "real"
 })
 
 const { data, pending, error, refresh } = await useAsyncData<EvidenceEnvelope>(
@@ -39,99 +36,191 @@ const { data, pending, error, refresh } = await useAsyncData<EvidenceEnvelope>(
   { watch: [scenario, searchQuery] },
 )
 
-/** 切换场景：写回 URL（可分享、可被 curl 带 SSR 数据验证） */
-function switchScenario(id: ScenarioId) {
-  router.replace({ query: { ...route.query, scenario: id } })
-}
-
-/** 检索按钮：以产品输入词重新拉取真实快照场景 */
-function submitSearch() {
-  searchQuery.value = productInput.value.trim() || "旅行收纳包"
-}
-
 const envelope = computed(() => data.value ?? null)
+const grouped = computed(() => (envelope.value ? groupCardsByHypothesis(envelope.value.cards) : null))
 
-/** 证据卡按假设分组（支持/反对/缺失）+ 未归属组 */
-const grouped = computed(() =>
-  envelope.value ? groupCardsByHypothesis(envelope.value.cards) : null,
+const hypothesisViews = computed(() =>
+  HYPOTHESES.map((hypothesis, index) => {
+    const group = grouped.value?.groups.find((item) => item.hypothesis.id === hypothesis.id)
+    const status: HypothesisStatus = group?.status ?? "insufficient"
+    return {
+      hypothesis,
+      index,
+      group,
+      status,
+      statusNote: group?.statusNote ?? "正在读取证据状态",
+      supportCount: group?.support.filter((card) => card.level === "L1").length ?? 0,
+      opposeCount: group?.oppose.filter((card) => card.level === "L1").length ?? 0,
+      missingCount: group?.missing.length ?? 0,
+    }
+  }),
 )
 
-/** 左栏：每条假设的状态（镜像 domain/evidence.py 的 resolve_stance，仅 L1 计入） */
-const leftStatuses = computed<Record<string, HypothesisStatus>>(() => {
-  const map: Record<string, HypothesisStatus> = {}
-  for (const g of grouped.value?.groups ?? []) {
-    map[g.hypothesis.id] = g.status
-  }
-  return map
-})
+const activeView = computed(() =>
+  hypothesisViews.value.find((view) => view.hypothesis.id === activeHypothesisId.value),
+)
+const activeGroup = computed(() => activeView.value?.group ?? null)
 
-/** 假设导航状态点样式 */
-const DOT_CLS: Record<HypothesisStatus, string> = {
-  support: "side__hypodot--ok",
-  conflict: "side__hypodot--bad",
-  insufficient: "side__hypodot--warn",
+watch(
+  grouped,
+  (groups) => {
+    if (!groups?.groups.length) return
+    if (!groups.groups.some((group) => group.hypothesis.id === activeHypothesisId.value)) {
+      activeHypothesisId.value = groups.groups[0].hypothesis.id
+    }
+  },
+  { immediate: true },
+)
+
+function selectHypothesis(id: string, revealEvidence = false) {
+  activeHypothesisId.value = id
+  if (!revealEvidence) return
+  mobilePanel.value = "evidence"
+  nextTick(() => {
+    const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches
+    document.getElementById(`hypo-${id}`)?.scrollIntoView({
+      behavior: reduceMotion ? "auto" : "smooth",
+      block: "start",
+    })
+  })
 }
-const dotCls = (id: string): string => DOT_CLS[leftStatuses.value[id] ?? "insufficient"]
 
-/** 侧栏「本次验证」结论卡的语义类 */
-const verdictCls = computed(() => {
-  const s = envelope.value?.stance
-  if (s === "conflicting" || s === "refuted") return "verdict--bad"
-  if (s === "supported") return "verdict--ok"
-  return "verdict--warn"
+function startTour() {
+  tourStep.value = 0
+  mobilePanel.value = "hypotheses"
+}
+
+function finishTour() {
+  tourStep.value = null
+  mobilePanel.value = "evidence"
+  try {
+    localStorage.setItem(TOUR_KEY, "1")
+  } catch {
+    // Storage can be unavailable in privacy modes; the guide still works for this visit.
+  }
+}
+
+function advanceTour() {
+  if (tourStep.value === null) return
+  if (tourStep.value >= 2) {
+    finishTour()
+    return
+  }
+  tourStep.value += 1
+  mobilePanel.value = tourStep.value === 1 ? "evidence" : "actions"
+}
+
+function onTourKeydown(event: KeyboardEvent) {
+  if (event.key === "Escape" && tourStep.value !== null) finishTour()
+}
+
+onMounted(() => {
+  const hashId = window.location.hash.replace(/^#hypo-/, "")
+  if (HYPOTHESES.some((hypothesis) => hypothesis.id === hashId)) selectHypothesis(hashId)
+  let seen = "1"
+  try {
+    seen = localStorage.getItem(TOUR_KEY) ?? "0"
+  } catch {
+    seen = "0"
+  }
+  if (seen !== "1") startTour()
+  window.addEventListener("keydown", onTourKeydown)
 })
 
-/** 生成时间（截到秒） */
+onBeforeUnmount(() => window.removeEventListener("keydown", onTourKeydown))
+
+const mobileTabs = [
+  { id: "hypotheses", label: "产品与假设" },
+  { id: "evidence", label: "证据对照" },
+  { id: "actions", label: "验证建议" },
+] as const
+
 const generatedShort = computed(() => {
   const raw = envelope.value?.generated_at ?? ""
   return raw ? raw.split(".")[0].replace("T", " ").replace("Z", " UTC") : ""
 })
 
-/** 演示场景下，返回的卡片（含知乎 L2 卡）是否含演示数据（供侧栏页面级合规提示） */
 const hasDemoCards = computed(() =>
   [...(envelope.value?.cards ?? []), ...(envelope.value?.l2Cards ?? [])].some(
-    (c) => c.is_demo_data,
+    (card) => card.is_demo_data,
   ),
 )
 
 const activeLabel = (id: ScenarioId) => (scenario.value === id ? "active" : "")
+
+function switchScenario(id: ScenarioId) {
+  router.replace({ query: { ...route.query, scenario: id } })
+}
+
+function submitSearch() {
+  searchQuery.value = productInput.value.trim() || "旅行收纳包"
+}
+
+const ACTION_COPY: Record<HypothesisStatus, { title: string; description: string }> = {
+  support: {
+    title: "扩大样本，复核支持是否稳定。",
+    description: "当前假设出现一手支持，但样本仍有限；先复核真实使用场景，再决定是否进入详情页测试。",
+  },
+  conflict: {
+    title: "找到分歧背后的使用场景。",
+    description: "支持与反对同时存在，先保留矛盾，再用访谈和原型测试解释分歧。",
+  },
+  insufficient: {
+    title: "先补足一手反馈，再判断。",
+    description: "当前假设缺少目标市场 L1 消费者反馈，任何偏好结论都不可用；优先补充样本与来源。",
+  },
+}
+
+const actionCopy = computed(() => ACTION_COPY[activeView.value?.status ?? "insufficient"])
+const actionItems = computed(() => [
+  "整理当前假设的支持与反对原文",
+  activeView.value?.status === "insufficient"
+    ? "补充目标市场 L1 一手消费者反馈"
+    : "用访谈验证分歧背后的真实使用场景",
+  "将候选文案进入 A/B 测试，并记录选择理由",
+])
+
+const actionKey = (index: number) => `${activeHypothesisId.value}:${index}`
+const completedActionCount = computed(
+  () => actionItems.value.filter((_, index) => checkedActions[actionKey(index)]).length,
+)
+
+const planText = computed(() => {
+  const view = activeView.value
+  const questions = envelope.value?.questions ?? []
+  return [
+    "CrossPilot 验证计划草案",
+    `假设：${view?.hypothesis.title ?? ""}`,
+    `状态：${view ? STATUS_META[view.status].label : ""}`,
+    `说明：${view?.statusNote ?? ""}`,
+    `这次要验证：${view?.hypothesis.probe ?? ""}`,
+    "",
+    "待验证问题",
+    ...questions.map((question, index) => `${index + 1}. ${question.text}（${question.source}）`),
+    "",
+    "下一步行动",
+    ...actionItems.value.map((item, index) => `${checkedActions[actionKey(index)] ? "[x]" : "[ ]"} ${item}`),
+  ].join("\n")
+})
+
+async function copyPlan() {
+  try {
+    await navigator.clipboard.writeText(planText.value)
+    copyFeedback.value = "已复制完整验证计划"
+  } catch {
+    copyFeedback.value = "复制失败，请手动选择计划内容"
+  }
+  window.setTimeout(() => {
+    copyFeedback.value = ""
+  }, 2400)
+}
 
 useHead({ title: "卖点验证工作台 · CrossPilot 2.0" })
 </script>
 
 <template>
   <AppShell crumb="卖点验证工作台">
-    <!-- 侧栏扩展：本次验证结论 + 假设锚点导航 + 页面级合规提示 + 数据源 meta -->
     <template #sidebar>
-      <div v-if="envelope" class="side__block">
-        <p class="side__label side__label--flush">本次验证</p>
-        <div class="verdict" :class="verdictCls">
-          <span class="verdict__dot" aria-hidden="true"></span>
-          <p class="verdict__label">{{ DECISION_LABEL[envelope.stance] }}</p>
-        </div>
-        <p class="verdict__trace num">
-          极性样本 {{ envelope.decision?.n_polarized ?? "—" }} · 门禁 {{ envelope.decision?.gate_status || "—" }}
-        </p>
-        <nav class="side__hypnav" aria-label="假设导航">
-          <a
-            v-for="h in HYPOTHESES"
-            :key="h.id"
-            class="side__hypitem"
-            :href="`#hypo-${h.id}`"
-          >
-            <span class="side__hypodot" :class="dotCls(h.id)" aria-hidden="true"></span>
-            <span class="side__hyptext">
-              <span class="side__hypotitle">{{ h.title }}</span>
-              <span class="side__hypoprobe">{{ h.probe }}</span>
-            </span>
-          </a>
-        </nav>
-      </div>
-
-      <p v-if="hasDemoCards" class="side__demo-hint">
-        本页含演示数据卡（斜纹底 + 角标）：演示数据：模拟回填，非真实德国消费者反馈；与真实反馈分组呈现，绝不混排。
-      </p>
-
       <div v-if="envelope" class="side__meta">
         <span>
           数据模式
@@ -145,35 +234,34 @@ useHead({ title: "卖点验证工作台 · CrossPilot 2.0" })
     </template>
 
     <div class="wb">
-      <!-- 工具行：场景切换 + 检索 -->
-      <div class="wb__toolbar">
-        <nav class="wb__scenarios" aria-label="场景切换">
-          <button
-            v-for="s in SCENARIOS"
-            :key="s.id"
-            type="button"
-            class="scenario-btn"
-            :class="[activeLabel(s.id), { 'scenario-btn--demo': s.demo }]"
-            @click="switchScenario(s.id)"
-          >
-            {{ s.label }}
-          </button>
-        </nav>
-        <form class="wb__search" @submit.prevent="submitSearch">
-          <label class="wb__field">
-            <span class="wb__label">产品</span>
-            <input v-model="productInput" type="text" class="wb__input" />
-          </label>
-          <span class="wb__x" aria-hidden="true">×</span>
-          <label class="wb__field">
-            <span class="wb__label">市场</span>
-            <input v-model="marketInput" type="text" class="wb__input wb__input--market" />
-          </label>
-          <button type="submit" class="btn btn--primary btn--sm">检索证据</button>
-        </form>
-      </div>
+      <header class="wb__header">
+        <div class="wb__heading">
+          <h1>卖点验证工作台</h1>
+        </div>
+        <div class="wb__controls">
+          <nav class="wb__scenarios" aria-label="场景切换">
+            <button
+              v-for="item in SCENARIOS"
+              :key="item.id"
+              type="button"
+              class="scenario-btn"
+              :class="[activeLabel(item.id), { 'scenario-btn--demo': item.demo }]"
+              @click="switchScenario(item.id)"
+            >
+              {{ item.label }}
+            </button>
+          </nav>
+          <form class="wb__search" @submit.prevent="submitSearch">
+            <label class="wb__field">
+              <span class="wb__label">产品</span>
+              <input v-model="productInput" type="text" class="wb__input" />
+            </label>
+            <span class="wb__market">德国市场</span>
+            <button type="submit" class="btn btn--primary btn--sm">检索证据</button>
+          </form>
+        </div>
+      </header>
 
-      <!-- 加载/错误状态 -->
       <div v-if="pending" class="statebox">正在加载证据…</div>
       <div v-else-if="error" class="statebox statebox--error">
         <p>证据加载失败：{{ (error as Error).message }}</p>
@@ -181,7 +269,6 @@ useHead({ title: "卖点验证工作台 · CrossPilot 2.0" })
       </div>
 
       <template v-else-if="envelope">
-        <!-- 状态横幅：当前场景总体结论，第一眼可见（数据模式/来源/时间在侧栏 meta） -->
         <StanceBanner
           :stance="envelope.stance"
           :decision="envelope.decision"
@@ -189,53 +276,180 @@ useHead({ title: "卖点验证工作台 · CrossPilot 2.0" })
           :query="envelope.query || searchQuery"
         />
 
-        <p v-if="envelope.invalidCards.length" class="invalid-banner">
-          契约提示：本次返回有 {{ envelope.invalidCards.length }} 张证据卡缺少必现字段，已按契约拒绝渲染（见下方占位说明）。
+        <p v-if="hasDemoCards" class="wb__notice">
+          <strong>演示模式 · Mock 数据</strong>
+          演示数据：模拟回填，非真实德国消费者反馈；所有评论均为模拟示例，仅用于体验证据验证流程。
         </p>
 
-        <!-- 证据分节 -->
-        <HypothesisEvidence
-          v-for="g in grouped?.groups ?? []"
-          :key="g.hypothesis.id"
-          :group="g"
-        />
+        <div class="wb__mobile-tabs" role="tablist" aria-label="工作台面板">
+          <button
+            v-for="tab in mobileTabs"
+            :id="`wb-tab-${tab.id}`"
+            :key="tab.id"
+            type="button"
+            role="tab"
+            :aria-selected="mobilePanel === tab.id"
+            :aria-controls="`wb-panel-${tab.id}`"
+            :class="{ active: mobilePanel === tab.id }"
+            @click="mobilePanel = tab.id"
+          >
+            {{ tab.label }}
+          </button>
+        </div>
 
-        <!-- 未归属证据：关键词未命中任何假设的卡，人工复核，绝不静默丢弃（默认收起） -->
-        <details v-if="(grouped?.unmatched.length ?? 0) > 0" class="hypo hypo--unmatched">
-          <summary class="hypo__head">
-            <h3 class="hypo__title">未归属证据</h3>
-            <span class="status-pill status--info num">{{ grouped!.unmatched.length }} 张</span>
-            <span class="unmatched__hint">多为 L3 背景语境，不参与状态判定，需人工复核</span>
-            <span class="unmatched__toggle" aria-hidden="true"></span>
-          </summary>
-          <p class="hypo__probe">
-            以下证据未命中三条假设的归属关键词（多为 L3 背景语境），不参与状态判定，需人工复核。
-          </p>
-          <EvidenceCardView v-for="(c, i) in grouped!.unmatched" :key="i" :card="c" />
-        </details>
+        <div class="wb__workbench">
+          <aside
+            id="wb-panel-hypotheses"
+            class="wb__panel wb__hypotheses"
+            :class="{ 'is-mobile-active': mobilePanel === 'hypotheses', 'is-tour-active': tourStep === 0 }"
+            role="tabpanel"
+            aria-labelledby="wb-tab-hypotheses"
+          >
+            <header class="wb__panel-head">
+              <h2>产品与假设</h2>
+              <span>{{ hypothesisViews.length }} 条假设</span>
+            </header>
+            <div class="wb__hypothesis-list">
+              <button
+                v-for="view in hypothesisViews"
+                :key="view.hypothesis.id"
+                type="button"
+                class="wb__hypothesis"
+                :class="[
+                  `wb__hypothesis--${view.status}`,
+                  { 'is-active': activeHypothesisId === view.hypothesis.id },
+                ]"
+                :aria-pressed="activeHypothesisId === view.hypothesis.id"
+                @click="selectHypothesis(view.hypothesis.id, true)"
+              >
+                <span class="wb__hypothesis-top">
+                  <span class="wb__hypothesis-number num">{{ String(view.index + 1).padStart(2, "0") }}</span>
+                  <span class="wb__hypothesis-title">{{ view.hypothesis.title }}</span>
+                  <span class="wb__hypothesis-arrow" aria-hidden="true">→</span>
+                </span>
+                <span class="status-pill" :class="STATUS_META[view.status].cls">
+                  {{ STATUS_META[view.status].label }}
+                </span>
+                <span class="wb__hypothesis-counts num">
+                  {{ view.supportCount }} 支持 · {{ view.opposeCount }} 反对 · {{ view.missingCount }} 语境
+                </span>
+              </button>
+            </div>
+            <div class="wb__boundary">
+              <span aria-hidden="true">ⓘ</span>
+              <p>验证的是卖点假设，<br />不是替市场下结论。</p>
+            </div>
+            <button type="button" class="wb__tour-replay" @click="startTour">播放使用引导</button>
+          </aside>
 
-        <!-- 契约校验占位说明：缺字段卡不渲染 -->
-        <section v-if="envelope.invalidCards.length" class="hypo hypo--invalid">
-          <header class="hypo__head">
-            <h3 class="hypo__title">契约校验未通过 · 占位说明</h3>
-          </header>
-          <InvalidCardNotice v-for="(inv, i) in envelope.invalidCards" :key="i" :invalid="inv" />
-        </section>
+          <section
+            id="wb-panel-evidence"
+            class="wb__panel wb__evidence"
+            :class="{ 'is-mobile-active': mobilePanel === 'evidence', 'is-tour-active': tourStep === 1 }"
+            role="tabpanel"
+            aria-labelledby="wb-tab-evidence"
+          >
+            <header class="wb__panel-head">
+              <h2>证据对照</h2>
+              <span>{{ envelope.cards.length }} 张 · 原文 → 判断</span>
+            </header>
+            <div v-if="grouped" class="wb__evidence-body">
+              <div
+                v-for="group in grouped.groups"
+                v-show="activeHypothesisId === group.hypothesis.id"
+                :key="group.hypothesis.id"
+                class="wb__hypothesis-pane"
+              >
+                <HypothesisEvidence :key="`${scenario}-${group.hypothesis.id}`" :group="group" />
+              </div>
 
-        <!-- 附录：中文侧经验（L2）+ 待验证问题与测试建议 -->
-        <div class="appendix" :class="{ 'appendix--solo': !(envelope.l2Cards.length || envelope.l2Notice) }">
-          <section v-if="envelope.l2Cards.length || envelope.l2Notice" class="l2zone">
-            <h2 class="qcol__heading">中文侧经验（L2 · 知乎）</h2>
-            <p class="qcol__hint">
-              中文从业者经验只产出待验证问题，不构成支持/反对。
-            </p>
-            <p v-if="envelope.l2Notice" class="l2zone__notice">{{ envelope.l2Notice }}</p>
-            <p v-else-if="envelope.l2InvalidCards.length" class="l2zone__notice">
-              知乎侧有 {{ envelope.l2InvalidCards.length }} 张卡缺少必现字段，已按契约拒绝渲染。
-            </p>
-            <EvidenceCardView v-for="(c, i) in envelope.l2Cards" :key="i" :card="c" />
+              <details v-if="(grouped?.unmatched.length ?? 0) > 0" class="hypo hypo--unmatched wb__supplement">
+                <summary class="hypo__head">
+                  <h3 class="hypo__title">未归属证据</h3>
+                  <span class="status-pill status--info num">{{ grouped!.unmatched.length }} 张</span>
+                  <span class="unmatched__hint">需人工复核，不参与状态判定</span>
+                  <span class="unmatched__toggle" aria-hidden="true"></span>
+                </summary>
+                <p class="hypo__probe">
+                  以下证据未命中三条假设的归属关键词，绝不静默丢弃；多为 L3 背景语境，不参与状态判定。
+                </p>
+                <EvidenceCardView v-for="(card, index) in grouped!.unmatched" :key="index" :card="card" />
+              </details>
+
+              <section v-if="envelope.invalidCards.length" class="hypo hypo--invalid wb__supplement">
+                <header class="hypo__head">
+                  <h3 class="hypo__title">契约校验未通过 · 占位说明</h3>
+                </header>
+                <InvalidCardNotice v-for="(invalid, index) in envelope.invalidCards" :key="index" :invalid="invalid" />
+              </section>
+            </div>
+            <div v-else class="statebox">正在组织当前假设的证据…</div>
+            <div class="wb__storage-note">
+              <span aria-hidden="true">✓</span>
+              仅 L1 一手反馈参与偏好判定 · L2 / L3 只产出待验证问题
+            </div>
           </section>
-          <QuestionsColumn :questions="envelope.questions" />
+
+          <aside
+            id="wb-panel-actions"
+            class="wb__panel wb__actions"
+            :class="{ 'is-mobile-active': mobilePanel === 'actions', 'is-tour-active': tourStep === 2 }"
+            role="tabpanel"
+            aria-labelledby="wb-tab-actions"
+          >
+            <header class="wb__panel-head">
+              <h2>下一步验证建议</h2>
+              <span class="wb__draft-badge">草案</span>
+            </header>
+            <div class="wb__action-body">
+              <section class="wb__plan-intro">
+                <h3>{{ actionCopy.title }}</h3>
+                <p>{{ actionCopy.description }}</p>
+                <div class="wb__plan-gap">
+                  <span>这次要验证</span>
+                  <p>{{ activeGroup?.hypothesis.probe ?? "选择一条卖点假设后生成验证方向。" }}</p>
+                </div>
+              </section>
+
+              <QuestionsColumn :questions="envelope.questions" />
+
+              <section class="wb__action-checklist">
+                <div class="wb__action-heading">
+                  <h3>下一步行动</h3>
+                  <span class="num">{{ completedActionCount }} / {{ actionItems.length }}</span>
+                </div>
+                <label v-for="(item, index) in actionItems" :key="item" class="wb__action-check">
+                  <input v-model="checkedActions[actionKey(index)]" type="checkbox" />
+                  <span>{{ item }}</span>
+                </label>
+                <p class="wb__action-hint">勾选仅用于当前页面的执行记录。</p>
+              </section>
+
+              <button type="button" class="btn btn--ghost btn--sm wb__copy" @click="copyPlan">
+                复制完整验证计划
+              </button>
+              <p v-if="copyFeedback" class="wb__copy-feedback" role="status">{{ copyFeedback }}</p>
+            </div>
+          </aside>
+        </div>
+
+        <WorkbenchTour v-if="tourStep !== null" :step="tourStep" @next="advanceTour" @skip="finishTour" />
+
+        <div v-if="envelope.l2Cards.length || envelope.l2Notice" class="appendix wb__appendix">
+          <details class="l2zone">
+            <summary class="wb__l2-summary">
+              <span>中文侧经验（L2 · 知乎）</span>
+              <span>不参与偏好判定</span>
+            </summary>
+            <div class="wb__l2-body">
+              <p class="qcol__hint">中文从业者经验只产出待验证问题，不构成支持/反对。</p>
+              <p v-if="envelope.l2Notice" class="l2zone__notice">{{ envelope.l2Notice }}</p>
+              <p v-else-if="envelope.l2InvalidCards.length" class="l2zone__notice">
+                知乎侧有 {{ envelope.l2InvalidCards.length }} 张卡缺少必现字段，已按契约拒绝渲染。
+              </p>
+              <EvidenceCardView v-for="(card, index) in envelope.l2Cards" :key="index" :card="card" />
+            </div>
+          </details>
         </div>
 
         <footer class="footer">

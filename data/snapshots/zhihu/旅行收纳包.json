@@ -5,11 +5,41 @@
   "captured_at": "2026-11-18",
   "captured_via": "zhihu-cli v0.6.3 zhihu_search ×3（当日消耗 3/10 次额度）",
   "provenance": "research/crosspilot-evidence_dim04.md §4.1（真实采集记录：引文/链接/AuthorityLevel/赞同数/时间戳）；本文件为该记录的转录，摘录与链接逐字保留",
+  "freshness_note": "captured_at=2026-11-18 是 API 实际检索日，generated_at_utc=2026-11-21 仅为本转录文件的生成时间；判断数据新鲜度一律以 captured_at 为准，消费端不得用 generated_at_utc 代替采集日（修复 D-09）",
+  "raw_payload_ref": {
+    "status": "missing",
+    "reason": "2026-11-18 采集时未保存 zhihu_search 的原始 JSON 响应，只留下人工转录；原始响应已不可追回（每次检索消耗当日 10 次额度，且历史响应不可重放）",
+    "impact": "本快照无法逐字复核 API 返回，卡片字段的权威版本是 source_url 对应的知乎页面",
+    "remediation": "后续采集一律由 scripts/capture_zhihu_snapshot.py 执行，该脚本落盘脱敏原始响应至 data/snapshots/zhihu/raw/{query}_{captured_at}.json，并在此字段登记相对路径与 SHA-256"
+  },
+  "excluded_cards": [
+    {
+      "label": "C",
+      "content_id": "7617456394347580678",
+      "reason": "无发布日期元数据（EditTime 缺失）；为不以捕获日冒充发布日而排除",
+      "recoverable": "待有凭据重采时补齐发布日后可收录"
+    },
+    {
+      "label": "E",
+      "content_id": "1824604693299800241",
+      "reason": "无发布日期元数据（EditTime 缺失）；为不以捕获日冒充发布日而排除",
+      "recoverable": "待有凭据重采时补齐发布日后可收录"
+    }
+  ],
+  "completeness": {
+    "search_calls": 3,
+    "results_returned": 30,
+    "relevant_fragments": 5,
+    "cards_kept": 3,
+    "cards_excluded": 2,
+    "note": "本快照不是完整采集结果：5 条相关片段中 2 条因缺发布日被排除，见 excluded_cards。引用样本量时须以 cards_kept=3 为准"
+  },
   "notes": [
     "原始采集共得 5 条相关片段（A–E）；本文件收录 A/B/D 三条（EditTime 时间戳齐备，可推真实发布日期 2026-11-11 / 2026-10-10 / 2026-07-29）。",
     "片段 C（ContentID 7617456394347580678）与 E（1824604693299800241）无发布日期元数据，为不以捕获日冒充发布日暂不收录，待凭据重采补齐。",
     "链接为 API 原样返回；2026-11-21 匿名 curl 实测 403/超时为知乎反爬，浏览器可正常打开。",
-    "片段 D 为中文二手归纳（作者为税务师），按 CONSTRAINTS 第四节仅计「问题来源」，不得作为德国消费者证据（AuthorityLevel=2，本次采集最低档，已在卡面层级体现）。"
+    "片段 D 为中文二手归纳（作者为税务师），按 CONSTRAINTS 第四节仅计「问题来源」，不得作为德国消费者证据（AuthorityLevel=2，本次采集最低档，已在卡面层级体现）。",
+    "知乎搜索实测配额 10 次/日，不支撑大规模实时采集；本快照属 L2，只能生成待验证问题，不能作为德国消费者证据。"
   ],
   "cards": [
     {

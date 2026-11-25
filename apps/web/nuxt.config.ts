@@ -5,6 +5,14 @@
 export default defineNuxtConfig({
   compatibilityDate: '2025-07-15',
   devtools: { enabled: false },
+  app: {
+    head: {
+      // 在首屏样式前恢复主题，避免刷新时闪现另一套皮肤。
+      script: [{
+        innerHTML: `try{var q=new URLSearchParams(location.search).get("theme"),t=(q==="day"||q==="night")?q:localStorage.getItem("crosspilot-theme");if(t==="day"||t==="night")document.documentElement.dataset.theme=t}catch{}`,
+      }],
+    },
+  },
   // 手写全局 CSS：不引入任何 UI 组件库（依赖最小化约束）
   css: ['~/assets/css/main.css'],
   runtimeConfig: {
