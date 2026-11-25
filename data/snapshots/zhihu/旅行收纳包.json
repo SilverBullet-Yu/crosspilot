@@ -4,7 +4,7 @@
   "is_demo_data": false,
   "captured_at": "2026-11-18",
   "captured_via": "zhihu-cli v0.6.3 zhihu_search ×3（当日消耗 3/10 次额度）",
-  "provenance": "research/crosspilot-evidence_dim04.md §4.1（真实采集记录：引文/链接/AuthorityLevel/赞同数/时间戳）；本文件为该记录的转录，摘录与链接逐字保留",
+  "provenance": "docs/research/CrossPilot_证据_dim04_知乎实查记录.md §4.1（真实采集记录：引文/链接/AuthorityLevel/赞同数/时间戳）；本文件为该记录的转录，摘录与链接逐字保留",
   "freshness_note": "captured_at=2026-11-18 是 API 实际检索日，generated_at_utc=2026-11-21 仅为本转录文件的生成时间；判断数据新鲜度一律以 captured_at 为准，消费端不得用 generated_at_utc 代替采集日（修复 D-09）",
   "raw_payload_ref": {
     "status": "missing",

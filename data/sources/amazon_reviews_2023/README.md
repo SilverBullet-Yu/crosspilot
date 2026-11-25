@@ -27,7 +27,7 @@
 
 因此本库只能用于：① 美国市场一手消费者反馈（L1）；② 评审方法学与证据卡
 结构的管线试点。**不得**用英文评论冒充德国市场证据；德国侧 L1 仍只能走
-品牌授权导出（见仓库外交接区 `handover/status/STATUS.md` 第 1 优先事项）。写入消费者证据
+品牌授权导出（见 `docs/status/STATUS.md` 第 1 优先事项）。写入消费者证据
 侧前的闸门仍是 `services/datasets.py:assert_demand_side`，tier 维持 L1 不变，
 但使用时必须知道这是美国市场样本（manifest `tier_caveat` 有同文说明）。
 

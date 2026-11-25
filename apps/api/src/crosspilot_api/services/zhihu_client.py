@@ -24,7 +24,7 @@
   搜索 10 次/日，禁止消耗），字段名以文档副本为准；live 首跑（capture 脚本）时
   若实际响应与本文档不符，以实际响应修订本文件，并回填核验记录。
 - 实测额度：zhihu_search 10 次/日（手册称 5000，差 500 倍，见
-  research/crosspilot-evidence_dim04.md）。
+  docs/research/CrossPilot_证据_dim04_知乎实查记录.md）。
 """
 
 from __future__ import annotations

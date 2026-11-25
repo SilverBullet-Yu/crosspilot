@@ -36,7 +36,7 @@ data/snapshots/
 
 - `zhihu/旅行收纳包.json` 为**真实数据**（`is_demo_data=false`）：转录自 2026-11-18
   zhihu-cli v0.6.3 的真实采集成果（消耗 3/10 次搜索额度），引文、链接、AuthorityLevel、
-  赞同数、时间戳逐字保留，溯源材料见仓库外交接区 `handover/research/crosspilot-evidence_dim04.md` §4.1。
+  赞同数、时间戳逐字保留，溯源材料见 `docs/research/CrossPilot_证据_dim04_知乎实查记录.md` §4.1。
   收录 A/B/D 三条片段（EditTime 齐备，发布日期 2026-11-11 / 2026-10-10 / 2026-07-29）；
   C/E 两条因无发布日期元数据暂不收录（不以捕获日冒充发布日），已记入 `excluded_cards`。
   片段 D 为中文二手归纳（AuthorityLevel=2 最低档），按 CONSTRAINTS 第四节仅计
@@ -67,7 +67,7 @@ python scripts/capture_zhihu_snapshot.py --dry-run  # 试运行
 注意：
 
 - 实测额度 **知乎搜索 10 次/日**（手册称 5000，差 500 倍，见
-  `handover/research/crosspilot-evidence_dim04.md`，仓库外交接区），一次捕获消耗 1 次额度；额度耗尽时适配器
+  `docs/research/CrossPilot_证据_dim04_知乎实查记录.md`），一次捕获消耗 1 次额度；额度耗尽时适配器
   抛 `QuotaExhaustedError` 并给出降级指引，**禁止静默返回空结果**（ADR-0002 决策 4）。
 - 爬取红线（CONSTRAINTS 第四节）：只做实时检索 + 摘录引用（≤300 字符）+ 链接回源，
   **不建全文库**；适配器已硬实现摘录截断、作者匿名化与 PII 剔除。

@@ -1,86 +1,125 @@
 # CrossPilot 2.0
 
-跨境消费者认知差验证 Agent —— 知乎黑客松 S3 / AI × 出海。
+**出海卖点的上线前尽职调查工作台。**
 
-首个固定场景：**中国消费品品牌 → 德国市场 → 非电器旅行收纳包 → 商品详情页首屏卖点验证**。
+帮准备进入德国市场的中国消费品牌，在商品详情页上线前回答一个问题：
 
-产品形态是工作台式 Web 应用（产品概览落地页 + 卖点验证工作台 + 历史验证项目），不是报告生成器。核心语义：L1 一手反馈支撑判定，L2 中文经验与 L3 监管/贸易语境只产出待验证问题；**证据不足与证据冲突都是必须显式可见的状态**，系统不编造结论。
+> 这个卖点有没有真实用户证据支持？下一步该验证什么？
 
-> 当前界面以实际运行与 [docs/demo/演示说明.md](docs/demo/演示说明.md) 第二节验收清单为准。
+它不生成「德国消费者喜欢什么」的笼统结论，只把证据分层摆清楚，给出可执行的下一步。
 
-- 演示 Runbook 与验收清单：[docs/demo/演示说明.md](docs/demo/演示说明.md)（fixtures 模式离线可演，三场景直达）
-- 判定→建议→运营决定的闭环留痕：[docs/demo/validation_log.md](docs/demo/validation_log.md)
-- 数据区索引与许可：[data/sources/README.md](data/sources/README.md)（9 来源 4.2 万行，四件套 + 原始响应留痕）
+## 产品逻辑
 
----
-
-## 1. 五分钟上手
-
-| 步骤 | 命令 | 说明 |
+| 层级 | 证据 | 用途 |
 |---|---|---|
-| 1 | `bash scripts/bootstrap.sh` | 建虚拟环境、装后端依赖、挂载源码路径、复制 `.env` |
-| 2 | 编辑 `.env` 填密钥 | 知乎 Access Secret、Comtrade key 等；`.env` 已被 git 忽略 |
-| 3 | `bash scripts/dev.sh api` | 启动 FastAPI，默认 <http://127.0.0.1:8000/docs> |
-| 4 | `bash scripts/dev.sh web` | 启动 Nuxt，默认 <http://127.0.0.1:3000> |
-| 5 | `bash scripts/check.sh` | 提交前五道自检：ruff + mypy strict + 全量测试 + 数据区结构校验 + 时间覆盖校验 |
-| 6 | `bash scripts/check_web.sh` | 前端冒烟：56 断言（~20s），录屏/提交前必跑 |
+| L1 | 德国消费者一手反馈 | 唯一能支撑「消费者偏好」结论 |
+| L2 | 知乎中文从业经验 | 只产出待验证问题 |
+| L3 | 监管、贸易、学术语境 | 只提供背景与约束 |
 
-Windows 下用 Git Bash 执行上述 `.sh`。
+证据先按来源分层，再去重、计数、做 Wilson 区间估计，最后只输出四种状态：
 
-> **克隆须知**：两类数据不随仓库分发——① MARC 主表（Amazon 学术研究许可**禁再发布**，凭 `data/sources/_scripts/fetch_marc.py` 复现）；② 各来源 `raw/` 原始响应（体积策略，凭 `provenance.csv` 的 SHA-256 与 URL 复现）。因此 fresh clone 直接跑 `check.sh` 时 MARC 的结构校验一道会红，属预期；CI 只跑后端三道（ruff / mypy / 测试），克隆即绿。
+- **缺少有效数据**：样本不足，不给结论
+- **已有有限支持**：支持区间刚过决定线
+- **多数反馈反对**：反对区间过决定线
+- **证据相互冲突**：支持与反对同时成立
 
-> **为什么不用 `pip install -e`**：可编辑安装会调起构建后端子进程，在部分受管运行时下被环境守卫拦截。`bootstrap.sh` 改用「装依赖 + `.pth` 挂载 `apps/api/src`」，效果等价。改动依赖时同步 `apps/api/pyproject.toml`、`bootstrap.sh` 与 CI 三处。
+每轮输出证据卡、待验证问题、访谈问题与 A/B 测试方向。
 
-## 2. 目录地图
+## 演示场景
 
-| 路径 | 职责 | 谁动它 |
+固定场景：旅行收纳包 × 德国市场 × 详情页首屏（容量、功能、低价三个卖点假设）。
+
+| 场景 | 数据 | 判定 |
 |---|---|---|
-| `apps/api/` | FastAPI 后端：检索、立场抽取、证据分层、对照矩阵 | 后端 |
-| `apps/api/src/crosspilot_api/domain/` | 纯领域模型与规则，**不依赖框架和网络** | 后端 |
-| `apps/api/src/crosspilot_api/services/` | 外部数据源适配器（知乎、Amazon、Eurostat…） | 后端 |
-| `apps/web/` | Nuxt 4 + Vue 3 多页工作台前端（产品概览 / 卖点验证工作台 / 历史验证项目） | 前端 |
-| `packages/contracts/` | 前后端共享契约（证据卡 / 对照矩阵 JSON Schema） | 前后端共同 |
-| `data/sources/` | 外部数据唯一落地处（9 来源，每源四件套 + raw），见其 README | 数据负责人 |
-| `data/snapshots/` | 演示预跑快照，**Demo 只读这里**，不走实时网络 | 全员 |
-| `data/licenses/` | 各数据源许可原件，交付时随作品说明提交 | 数据负责人 |
-| `docs/adr/` | 架构决策记录，一个决策一个文件，只增不改 | 决策人 |
-| `docs/demo/` | 演示 Runbook、录屏脚本与验证日志 | 全员 |
-| `docs/devlog/` | 开发日志，赛事创作真实性佐证，**每日必填** | 全员 |
-| `scripts/` | 一键脚本，不手敲长命令 | 全员 |
+| `real` | 知乎真实快照 + L3 监管/贸易数据 | 缺少有效数据（德国 L1 尚未取得） |
+| `limited` | 30 条分层模拟评论，21:9 | 已有有限支持 |
+| `conflict` | 30 条分层模拟评论，15:15 + 重复摘录 | 证据相互冲突 |
 
-> 交接状态、启用清单、PRD、调研与验收截图统一放在仓库外 `../handover/`，不随 GitHub 上传。
+演示数据均带显式标识，不与真实数据混排。
 
-## 3. 不可协商的五条硬约束
+## 快速使用
 
-写进代码与评审清单，详见 `docs/CONSTRAINTS.md`。
+要求：Python 3.12+、Node.js 20+、Git Bash（Windows）。
 
-| # | 约束 | 代码落点 |
-|---|---|---|
-| 1 | L2/L3 证据不得单独支撑「消费者偏好」结论，只能产出待验证问题 | `domain/evidence.py` 的 `can_support_preference_claim` |
-| 2 | MARC 数据集在商业化路径启动即下线 | `services/datasets.py` 的 `COMMERCIAL_SAFE` 白名单 |
-| 3 | OPUS 只取 ParaCrawl，排除 OpenSubtitles | 同上 |
-| 4 | Comtrade 必须注册账号，禁用 preview 的 500 行截断结果 | 适配器拒绝无 key 调用 |
-| 5 | DeepL API Free 档禁止传入含个人数据的文本 | `services/datasets.py` |
+```bash
+git clone https://github.com/SilverBullet-Yu/crosspilot.git
+cd crosspilot
 
-另有两条产品级强制项：**证据不足必须渲染为独立空状态卡片**，**证据冲突必须左右并排原文**。缺一即视为功能未完成。
+# 安装后端依赖、前端依赖，并生成 .env
+bash scripts/bootstrap.sh
 
-## 4. 演示安全线
+# 启动前端（默认读本地 fixtures，不需要后端、网络或凭据）
+bash scripts/dev.sh web
+```
 
-知乎 API 实测额度仅 10 次/日（搜索）、2 次/日（热榜、直答），远低于手册值。因此：
+打开 <http://localhost:3000>：
 
-- Demo 默认 `CROSSPILOT_DATA_MODE=snapshot`，只读 `data/snapshots/`；
-- 实时模式需显式设 `CROSSPILOT_DATA_MODE=live`；
-- 额度耗尽必须出现明确降级提示，不得静默返回空结果。
+- `/`：产品概览
+- `/workbench?scenario=real`：真实数据场景
+- `/workbench?scenario=limited`：有限支持场景
+- `/workbench?scenario=conflict`：证据冲突场景
+- `/history`：历史验证项目（演示版为空态）
 
-## 5. 协作约定
+如需调用真实后端（另开终端）：
 
-- 分支：`feat/*`、`fix/*`、`docs/*`，从 `main` 切出，小步合并。
-- 提交信息：`type(scope): summary`，例 `feat(evidence): add L1/L2/L3 level gate`。
-- 合并前跑 `scripts/check.sh`，红灯不合。
-- 每次 AI 辅助开发后，在 `docs/devlog/` 当日文件追加记录（赛事要求可核验创作真实性）。
+```bash
+bash scripts/dev.sh api
+NUXT_PUBLIC_API_BASE=http://localhost:8000 bash scripts/dev.sh web
+```
 
-## 6. 许可与数据
+凭据可选，仅在接入真实数据时需要，写入 `.env`：
 
-- **代码**：MIT（见 [LICENSE](LICENSE)）。
-- **数据**：各来源许可不同、逐源声明——CC0 / 开放数据 / Apache-2.0 / CC-BY-4.0 / ODC-By 等均可随仓库分发（署名见各源 README）；唯 **MARC（Amazon 学术研究许可）禁再发布，不随仓库分发**，本地复现走 `fetch_marc.py`。汇总见 [data/sources/README.md](data/sources/README.md) 与 `docs/CONSTRAINTS.md`。
-- **知乎快照**：真实采集片段已作者匿名化、摘录 ≤300 字符并链接回源，只作摘录引用、不建全文库。
+| 变量 | 用途 |
+|---|---|
+| `ZHIHU_ACCESS_SECRET` | 知乎实时检索（实测 10 次/日） |
+| `LLM_API_BASE` / `LLM_API_KEY` / `LLM_MODEL` | LLM 立场抽取；缺省回退规则基线 |
+| `COMTRADE_SUBSCRIPTION_KEY` | UN Comtrade 正式取数 |
+
+Demo 默认快照模式，只读 `data/snapshots/`；实时模式需显式设 `CROSSPILOT_DATA_MODE=live`。
+
+提交前自检：
+
+```bash
+bash scripts/check.sh      # ruff + mypy + 全量测试 + 数据区校验
+bash scripts/check_web.sh  # 前端 56 断言
+```
+
+> 克隆后若 `check.sh` 的数据区校验红灯，通常是本地没有 MARC 主表：该数据依许可禁再发布，不随仓库分发，属预期。CI 只跑 ruff / mypy / 测试。
+
+## 目录地图
+
+| 路径 | 职责 |
+|---|---|
+| `apps/api/` | FastAPI 后端：检索、立场抽取、证据分层、判定 |
+| `apps/web/` | Nuxt 4 + Vue 3 工作台前端 |
+| `packages/contracts/` | 前后端共享证据卡契约 |
+| `data/sources/` | 9 个外部数据源，每源四件套 + raw |
+| `data/snapshots/` | 演示预跑快照，Demo 只读这里 |
+| `data/licenses/` | 数据许可原件 |
+| `docs/` | 状态、清单、需求、调研、报告、ADR、演示与开发日志 |
+| `scripts/` | 初始化、启动与自检脚本 |
+
+## 五条硬约束
+
+1. L2/L3 证据不得单独支撑「消费者偏好」结论
+2. MARC 数据集在商业化路径启动即下线
+3. OPUS 只取 ParaCrawl，排除 OpenSubtitles
+4. Comtrade 必须注册账号，禁用 preview 的截断结果
+5. DeepL API Free 档禁止传入含个人数据的文本
+
+另有两条产品级强制项：**证据不足必须渲染为独立空状态卡片**，**证据冲突必须左右并排原文**。
+
+## 数据与许可
+
+- 代码：MIT（见 [LICENSE](LICENSE)）
+- 数据：逐源声明许可，汇总见 [data/sources/README.md](data/sources/README.md)
+- MARC 依 Amazon 学术研究许可**禁再发布**，不随仓库分发
+- 知乎内容只做实时检索 + 摘要引用 + 链接回源，不建全文库
+
+## 文档与协作
+
+- 文档总索引：[docs/README.md](docs/README.md)
+- 当前状态与接管：[docs/status/STATUS.md](docs/status/STATUS.md)
+- 演示 Runbook：[docs/demo/演示说明.md](docs/demo/演示说明.md)
+- 分支：`feat/*`、`fix/*`、`docs/*`；提交信息 `type(scope): summary`
+- 合并前 `bash scripts/check.sh` 全绿；每次 AI 辅助开发后在 `docs/devlog/` 追加记录
