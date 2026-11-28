@@ -6,6 +6,7 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
 from datetime import date
 from itertools import count
 
@@ -18,6 +19,7 @@ from crosspilot_api.domain.evidence import (
     GateStatus,
     Stance,
     decide,
+    decide_by_claim,
 )
 
 #: 卡文本全局序号：批量构造时每卡措辞唯一，避免被去重管道聚簇（R2 生效的证据）
@@ -87,6 +89,17 @@ class TestDecisionStates:
         assert decision.state is DecisionState.INSUFFICIENT
         assert decision.gate_status is GateStatus.BELOW_MINIMUM
         assert decision.n_polarized == 1
+
+    def test_opposite_stances_are_not_deduplicated(self) -> None:
+        text = "Die Tasche ist sehr gut und praktisch."
+        decision = decide([
+            _card(Stance.SUPPORT, excerpt=text),
+            _card(Stance.OPPOSE, excerpt=text),
+        ])
+        assert decision.n_polarized == 2
+        assert decision.dedup_clusters == 2
+        assert decision.dedup_duplicated == 0
+        assert all(info is not None and info.is_canonical for info in decision.dedup_by_card)
 
     def test_21_9_is_supported(self) -> None:
         decision = decide(_l1_batch(21, 9))
@@ -207,3 +220,30 @@ class TestTraceability:
         assert decision.n_total == 30
         assert decision.n_l1 == 30
         assert decision.dedup_clusters == 30
+
+
+class TestClaimDecisions:
+    def test_decisions_are_isolated_by_claim(self) -> None:
+        capacity = [replace(_card(Stance.SUPPORT), claim_id="capacity") for _ in range(30)]
+        price = [replace(_card(Stance.OPPOSE), claim_id="price") for _ in range(30)]
+        decisions = decide_by_claim(capacity + price, ("capacity", "features", "price"))
+        assert decisions["capacity"].state is DecisionState.SUPPORTED
+        assert decisions["price"].state is DecisionState.REFUTED
+        assert decisions["features"].gate_status is GateStatus.NO_L1
+
+    def test_unassigned_cards_do_not_enter_claim_decision(self) -> None:
+        cards = [replace(_card(Stance.SUPPORT), claim_id="capacity") for _ in range(30)]
+        cards += [_card(Stance.OPPOSE) for _ in range(30)]
+        decisions = decide_by_claim(cards, ("capacity",))
+        assert decisions["capacity"].state is DecisionState.SUPPORTED
+        assert decisions["capacity"].n_total == 30
+
+    def test_repeated_short_comments_do_not_pass_gate(self) -> None:
+        cards = [
+            replace(_card(Stance.SUPPORT, excerpt="Sehr gut!"), claim_id="capacity")
+            for _ in range(30)
+        ]
+        decision = decide_by_claim(cards, ("capacity",))["capacity"]
+        assert decision.state is DecisionState.INSUFFICIENT
+        assert decision.n_polarized == 1
+        assert decision.dedup_duplicated == 29

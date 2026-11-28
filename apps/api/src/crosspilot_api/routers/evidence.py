@@ -22,7 +22,7 @@ from datetime import UTC, date, datetime
 from enum import StrEnum
 from typing import Literal
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Query
 from pydantic import BaseModel
 
 from ..config import settings
@@ -35,18 +35,25 @@ from ..domain.evidence import (
     GateStatus,
     Stance,
     decide,
+    decide_by_claim,
+)
+from ..services.claims import CLAIM_IDS, UNASSIGNED_CLAIM_ID, claim_ids_from_cards
+from ..services.cross_source import (
+    CrossSourceComparison,
+    build_cross_source_comparisons,
+    build_evidence_questions,
 )
 from ..services.datasets import assert_demand_side
 from ..services.demo_evidence import (
     DEMO_CONFLICT_CARDS,
-    DEMO_CONFLICT_QUESTIONS,
     DEMO_L1_SOURCE_KEY,
+    DEMO_L2_CARDS,
     DEMO_LIMITED_CARDS,
-    DEMO_LIMITED_QUESTIONS,
     DEMO_QUERY,
 )
+from ..services.l1_import import load_l1_snapshot_data
 from ..services.query_expansion import expand_query
-from ..services.safety_gate_retrieval import build_real_questions, search_safety_gate_multi
+from ..services.safety_gate_retrieval import search_safety_gate_multi
 from ..services.stats import WilsonInterval
 from ..services.zhihu_client import QUOTA_GUIDANCE, QuotaExhaustedError, ZhihuError, search_zhihu
 from ..services.zhihu_snapshot import load_zhihu_snapshot, snapshot_path
@@ -106,6 +113,7 @@ class DecisionOut(BaseModel):
     dedup_clusters: int
     dedup_duplicated: int
     power_note: str
+    inference_note: str
 
     @classmethod
     def from_decision(cls, decision: Decision) -> DecisionOut:
@@ -121,7 +129,17 @@ class DecisionOut(BaseModel):
             dedup_clusters=decision.dedup_clusters,
             dedup_duplicated=decision.dedup_duplicated,
             power_note=decision.power_note,
+            inference_note=decision.inference_note,
         )
+
+
+class ClaimDecisionOut(DecisionOut):
+    claim_id: str
+
+    @classmethod
+    def from_claim(cls, claim_id: str, decision: Decision) -> ClaimDecisionOut:
+        base = DecisionOut.from_decision(decision)
+        return cls(**base.model_dump(), claim_id=claim_id)
 
 
 def _interval_out(interval: WilsonInterval | None) -> IntervalOut | None:
@@ -145,8 +163,20 @@ class EvidenceCardOut(BaseModel):
     dedup: DedupOut | None = None
     stance_votes: StanceVotesOut | None = None
     annotator_agreement: bool | None = None
+    classification_method: str | None = None
+    classification_note: str | None = None
+    review_required: bool | None = None
+    review_reasons: list[str] = []
     grade: EvidenceGrade | None = None
     downgrade_reasons: list[str] = []
+    claim_id: str | None = None
+    aspect_terms: list[str] = []
+    review_id: str | None = None
+    market: str | None = None
+    source_id: str | None = None
+    authorization: str | None = None
+    authorization_ref: str | None = None
+    relevance: str = "relevant"
 
     @classmethod
     def from_card(cls, card: EvidenceCard) -> EvidenceCardOut:
@@ -174,8 +204,59 @@ class EvidenceCardOut(BaseModel):
                 else None
             ),
             annotator_agreement=card.annotator_agreement,
+            classification_method=card.classification_method,
+            classification_note=card.classification_note,
+            review_required=card.review_required,
+            review_reasons=list(card.review_reasons),
             grade=card.grade,
             downgrade_reasons=list(card.downgrade_reasons),
+            claim_id=card.claim_id,
+            aspect_terms=list(card.aspect_terms),
+            review_id=card.review_id,
+            market=card.market,
+            source_id=card.source_id,
+            authorization=card.authorization,
+            authorization_ref=card.authorization_ref,
+            relevance=card.relevance,
+        )
+
+
+class EvidenceQuestionOut(BaseModel):
+    text: str
+    source: str
+
+
+class CrossSourceComparisonOut(BaseModel):
+    claim_id: str
+    label: str
+    status: str
+    l1_state: DecisionState
+    l1_total: int
+    l1_polarized: int
+    l1_support: int
+    l1_oppose: int
+    l1_insufficient: int
+    l2_total: int
+    l1_refs: list[str]
+    l2_refs: list[str]
+    question: str
+
+    @classmethod
+    def from_comparison(cls, comparison: CrossSourceComparison) -> CrossSourceComparisonOut:
+        return cls(
+            claim_id=comparison.claim_id,
+            label=comparison.label,
+            status=comparison.status,
+            l1_state=DecisionState(comparison.l1_state),
+            l1_total=comparison.l1_total,
+            l1_polarized=comparison.l1_polarized,
+            l1_support=comparison.l1_support,
+            l1_oppose=comparison.l1_oppose,
+            l1_insufficient=comparison.l1_insufficient,
+            l2_total=comparison.l2_total,
+            l1_refs=list(comparison.l1_refs),
+            l2_refs=list(comparison.l2_refs),
+            question=comparison.question,
         )
 
 
@@ -193,26 +274,43 @@ class EvidenceResponse(BaseModel):
     scenario: Scenario
     stance: DecisionState
     cards: list[EvidenceCardOut]
-    questions: list[str]
+    questions: list[EvidenceQuestionOut]
     generated_at: datetime
     #: 判定全链路可追溯数据（ADR-0005：区间 / 门禁 / 去重摘要 / 功效注记）。
     decision: DecisionOut
+    #: 每条卖点假设的独立判定；跨假设混合情感不得作为单条卖点结论。
+    claim_decisions: list[ClaimDecisionOut] = []
     #: 知乎侧 L2 中文证据卡（ADR-0002：snapshot 模式来自快照，live 模式来自实时检索）。
     l2_cards: list[EvidenceCardOut] = []
     #: L2 降级提示：快照缺失/损坏、配额耗尽、凭据缺失、网络故障时非空，禁止静默空结果。
     l2_notice: str | None = None
+    #: 德国 L1 授权快照的缺失或损坏提示。
+    l1_notice: str | None = None
+    #: 真实 L1 快照的授权用途范围；复核导出只能原样沿用，不能扩权。
+    l1_authorization_scope: list[str] = []
+    #: 当前已验证 L1 快照的 record_sha256；用于隔离不同版本的人工复核草稿。
+    l1_snapshot_sha256: str | None = None
+    #: 按卖点结构化保存 L1/L2 出处、样本分布与待核对问题；L2 不参与判定。
+    comparisons: list[CrossSourceComparisonOut] = []
 
 
-def _attach_dedup(cards: list[EvidenceCard], decision: Decision) -> list[EvidenceCard]:
-    """把 decide 管道的去重结果回填到 L1 卡（R2 产物进卡面，逐卡可审计）。
-
-    EvidenceCard 为 frozen dataclass，用 dataclasses.replace 生成带 dedup 的副本；
-    L2/L3 位为 None 不回填。stance_votes/annotator_agreement 在单标注器模式下
-    恒 None（两票制启用见 ADR-0005 决策 7：凭据到位后 --classifier ensemble）。
-    """
+def _attach_dedup(
+    cards: list[EvidenceCard], claim_decisions: dict[str, Decision]
+) -> list[EvidenceCard]:
+    """把各卖点判定管道的去重结果回填到 L1 卡，未归属卡不参与判定。"""
+    positions: dict[str, int] = {}
     out: list[EvidenceCard] = []
-    for i, card in enumerate(cards):
-        info = decision.dedup_by_card[i] if i < len(decision.dedup_by_card) else None
+    for card in cards:
+        info = None
+        if card.claim_id in claim_decisions:
+            position = positions.get(card.claim_id, 0)
+            decision = claim_decisions[card.claim_id]
+            info = (
+                decision.dedup_by_card[position]
+                if position < len(decision.dedup_by_card)
+                else None
+            )
+            positions[card.claim_id] = position + 1
         out.append(replace(card, dedup=info))
     return out
 
@@ -240,60 +338,125 @@ def _collect_l2(query: str) -> tuple[list[EvidenceCard], str | None]:
 
 
 @router.get("")
-def search_evidence(query: str = "") -> EvidenceResponse:
-    """真实快照（scenario=real）：Safety Gate 近邻品类（L3）+ 知乎侧 L2 卡（l2_* 字段）。
-
-    L3 用双语扩展词表做并集检索（中文词与其英文等价式一起命中）；
-    判定只由 cards（L3-only → gate=no_l1）计算，维持既有行为：L2 卡不进入
-    decide 的输入，硬约束 1（L2 不得单独支撑偏好结论）由 domain 层保证，
-    路由层不重复判断。
-    """
+def search_evidence(query: str = Query("", max_length=100)) -> EvidenceResponse:
+    """真实快照：授权德国 L1 + 知乎 L2 + Safety Gate L3，按卖点分别判定。"""
     terms = expand_query(query)
-    cards = search_safety_gate_multi(terms)
+    l3_cards = search_safety_gate_multi(terms)
+    l1_snapshot = load_l1_snapshot_data(query)
+    l1_cards = l1_snapshot.cards
+    l1_notice = l1_snapshot.notice
     l2_cards, l2_notice = _collect_l2(query)
-    decision = decide(cards)
+    cards = l1_cards + l3_cards
+    claim_ids = claim_ids_from_cards(l1_cards)
+    claim_decisions = decide_by_claim(cards, claim_ids)
+    present_claim_ids = sorted(
+        {
+            card.claim_id
+            for card in l1_cards
+            if card.relevance == "relevant"
+            and card.claim_id in claim_ids
+            and card.claim_id != UNASSIGNED_CLAIM_ID
+        }
+    )
+    if len(present_claim_ids) == 1:
+        decision = decide(
+            [card for card in cards if card.claim_id == present_claim_ids[0]]
+        )
+    else:
+        decision = replace(
+            decide([]),
+            n_total=len(cards),
+            power_note=(
+                "当前包络包含多个卖点或未归属评论，不生成跨卖点总体判定；"
+                "请查看 claim_decisions。"
+            ),
+        )
+    cards_with_dedup = _attach_dedup(cards, claim_decisions)
+    comparisons = build_cross_source_comparisons(
+        l1_cards=cards_with_dedup,
+        l2_cards=l2_cards,
+        claim_decisions=claim_decisions,
+        claim_ids=claim_ids,
+    )
+    questions = build_evidence_questions(
+        query=query,
+        l1_cards=cards_with_dedup,
+        l2_cards=l2_cards,
+        l3_cards=l3_cards,
+        claim_decisions=claim_decisions,
+        claim_ids=claim_ids,
+        comparisons=comparisons,
+    )
     return EvidenceResponse(
         query=query,
         market=MARKET,
         data_mode=settings.data_mode,
         scenario=Scenario.REAL,
         stance=decision.state,
-        cards=[EvidenceCardOut.from_card(card) for card in cards],
-        questions=build_real_questions(query, len(cards)),
+        cards=[EvidenceCardOut.from_card(card) for card in cards_with_dedup],
+        questions=[EvidenceQuestionOut(**question) for question in questions],
         generated_at=datetime.now(UTC),
         decision=DecisionOut.from_decision(decision),
+        claim_decisions=[
+            ClaimDecisionOut.from_claim(claim_id, claim_decisions[claim_id])
+            for claim_id in claim_ids
+        ],
         l2_cards=[EvidenceCardOut.from_card(card) for card in l2_cards],
         l2_notice=l2_notice,
+        l1_notice=l1_notice,
+        l1_authorization_scope=list(l1_snapshot.authorization_scope),
+        l1_snapshot_sha256=l1_snapshot.snapshot_sha256,
+        comparisons=[
+            CrossSourceComparisonOut.from_comparison(comparison)
+            for comparison in comparisons
+        ],
     )
 
 
 @router.get("/demo")
 def demo_evidence(scenario: Literal["conflict", "limited"]) -> EvidenceResponse:
-    """演示状态：显式标识的演示数据，不与真实反馈同卡混排。
-
-    两个场景分支都先走 assert_demand_side 校验 L1 demo 声明源
-    （demo 源不进 REGISTRY 的理由见 services/datasets.py 注释与 services/demo_evidence.py）。
-    判定走 ADR-0005 公式：conflict（15:15）→ conflicting；limited（21:9）→ supported。
-    """
+    """显式标识的模拟 L1 + 模拟 L2，用于演示跨来源对照，不与真实数据混排。"""
     assert_demand_side(DEMO_L1_SOURCE_KEY)
     if scenario == "conflict":
         cards = list(DEMO_CONFLICT_CARDS)
-        questions = list(DEMO_CONFLICT_QUESTIONS)
         scenario_label = Scenario.DEMO_CONFLICT
     else:
         cards = list(DEMO_LIMITED_CARDS)
-        questions = list(DEMO_LIMITED_QUESTIONS)
         scenario_label = Scenario.DEMO_LIMITED
+    claim_decisions = decide_by_claim(cards, CLAIM_IDS)
     decision = decide(cards)
-    cards_with_dedup = _attach_dedup(cards, decision)
+    cards_with_dedup = _attach_dedup(cards, claim_decisions)
+    l2_cards = list(DEMO_L2_CARDS)
+    comparisons = build_cross_source_comparisons(
+        l1_cards=cards_with_dedup,
+        l2_cards=l2_cards,
+        claim_decisions=claim_decisions,
+    )
+    questions = build_evidence_questions(
+        query=DEMO_QUERY,
+        l1_cards=cards_with_dedup,
+        l2_cards=l2_cards,
+        l3_cards=[],
+        claim_decisions=claim_decisions,
+        comparisons=comparisons,
+    )
     return EvidenceResponse(
         query=DEMO_QUERY,
         market=MARKET,
         data_mode=settings.data_mode,
         scenario=scenario_label,
-        stance=decision.state,  # conflict → conflicting（并排）；limited → supported
+        stance=decision.state,
         cards=[EvidenceCardOut.from_card(card) for card in cards_with_dedup],
-        questions=questions,
+        questions=[EvidenceQuestionOut(**question) for question in questions],
         generated_at=datetime.now(UTC),
         decision=DecisionOut.from_decision(decision),
+        claim_decisions=[
+            ClaimDecisionOut.from_claim(claim_id, claim_decisions[claim_id])
+            for claim_id in CLAIM_IDS
+        ],
+        l2_cards=[EvidenceCardOut.from_card(card) for card in l2_cards],
+        comparisons=[
+            CrossSourceComparisonOut.from_comparison(comparison)
+            for comparison in comparisons
+        ],
     )

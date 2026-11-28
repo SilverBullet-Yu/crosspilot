@@ -119,10 +119,11 @@ REGISTRY: dict[str, DataSource] = {
         Tier.BENCHMARK, "P0",
     ),
     "gerestaurant": DataSource(
-        "gerestaurant", "CC-BY-4.0", True, False,
-        "德语 ABSA 基准，3078 条餐厅评论含 aspect 与极性标注；许可可商用，餐厅域不可外推。"
+        "gerestaurant", "CC-BY-4.0（上游 LICENSE 待确认）", False, False,
+        "德语 ABSA 基准，3078 条餐厅评论含 aspect 与极性标注；餐厅域不可外推。"
         "2026-11-21 已入库（data/sources/gerestaurant/）：上游仓库 .gitignore 排除数据文件、"
         "HF 不可达，数据原件取自 fork kartik-gadhvi/GERestaurant（提交 2024-09-13）。"
+        "上游无 LICENSE 文件，正式商用前须向作者确认；当前按不可商用保守处理。"
         "规则立场基线全量实测：accuracy 0.610，宏 F1 0.533（baseline_eval.md）",
         Tier.BENCHMARK, "P0",
     ),

@@ -84,26 +84,44 @@ class _UnionFind:
             self._rank[ra] += 1
 
 
-def deduplicate(texts: Sequence[str]) -> list[DedupInfo]:
+def deduplicate(
+    texts: Sequence[str],
+    stances: Sequence[str] | None = None,
+) -> list[DedupInfo]:
     """对摘录列表做近重复聚类，返回与输入等长的 DedupInfo 列表。
 
-    cluster_id 按簇代表（输入序首条）的出现次序从 0 递增；短文本守卫内的
-    摘录与独特摘录各成单簇（dup_count=1）。同簇代表 = 输入序首条。
+    提供 stances 时仅合并相同立场，防止相同或近似文本下的支持/反对被静默
+    丢弃。cluster_id 按簇代表（输入序首条）的出现次序从 0 递增；短文本守卫内
+    的摘录与独特摘录各成单簇（dup_count=1）。规范化后完全相同的摘录先去重，
+    不受近重复短文本守卫影响。同簇代表 = 输入序首条。
     """
     size = len(texts)
     if size == 0:
         return []
+    if stances is not None and len(stances) != size:
+        raise ValueError("stances 必须与 texts 等长")
 
     normalized = [normalize_text(t) for t in texts]
+    uf = _UnionFind(size)
+    exact_groups: dict[tuple[str, str], list[int]] = {}
+    for index, text in enumerate(normalized):
+        if text:
+            stance = stances[index] if stances is not None else ""
+            exact_groups.setdefault((text, stance), []).append(index)
+    for indices in exact_groups.values():
+        for index in indices[1:]:
+            uf.union(indices[0], index)
+
     grams = [_grams(t) for t in normalized]
     clusterable = [len(t) >= MIN_CLUSTER_TEXT_LEN for t in normalized]
 
-    uf = _UnionFind(size)
     for i in range(size):
         if not clusterable[i]:
             continue
         for j in range(i + 1, size):
             if not clusterable[j]:
+                continue
+            if stances is not None and stances[i] != stances[j]:
                 continue
             union_len = len(grams[i] | grams[j])
             if union_len == 0:
@@ -137,3 +155,50 @@ def deduplicate(texts: Sequence[str]) -> list[DedupInfo]:
             )
         )
     return infos
+
+
+def find_stance_conflicts(
+    texts: Sequence[str],
+    stances: Sequence[str],
+) -> tuple[tuple[int, ...], ...]:
+    """返回精确或近重复但立场标签不一致的评论索引组。
+
+    这里刻意忽略立场做聚类，与 deduplicate 的同立场聚类互补：冲突组不合并、
+    不自动改票，只用于触发人工复核，避免标注冲突被误当成消费者分歧。
+    """
+    size = len(texts)
+    if len(stances) != size:
+        raise ValueError("stances 必须与 texts 等长")
+    if size < 2:
+        return ()
+    normalized = [normalize_text(text) for text in texts]
+    union_find = _UnionFind(size)
+    exact_groups: dict[str, list[int]] = {}
+    for index, text in enumerate(normalized):
+        if text:
+            exact_groups.setdefault(text, []).append(index)
+    for indices in exact_groups.values():
+        for index in indices[1:]:
+            union_find.union(indices[0], index)
+
+    grams = [_grams(text) for text in normalized]
+    clusterable = [len(text) >= MIN_CLUSTER_TEXT_LEN for text in normalized]
+    for i in range(size):
+        if not clusterable[i]:
+            continue
+        for j in range(i + 1, size):
+            if not clusterable[j]:
+                continue
+            union_len = len(grams[i] | grams[j])
+            if union_len and len(grams[i] & grams[j]) / union_len >= DEDUP_THRESHOLD:
+                union_find.union(i, j)
+
+    groups: dict[int, list[int]] = {}
+    for index in range(size):
+        groups.setdefault(union_find.find(index), []).append(index)
+    conflicts = [
+        tuple(indices)
+        for indices in groups.values()
+        if len({stances[index] for index in indices}) > 1
+    ]
+    return tuple(sorted(conflicts, key=lambda indices: indices[0]))

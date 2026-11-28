@@ -88,12 +88,31 @@ class ZhihuExtraction:
     source_url: str
     published_on: date
     author_anonymous_id: str
+    claim_id: str | None = None
 
 
 _HTML_TAG_RE = re.compile(r"<[^>]+>")
 _EMAIL_RE = re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}")
 _PHONE_RE = re.compile(r"(?<!\d)(?:1[3-9]\d{9}|0\d{2,3}-\d{7,8})(?!\d)")
-_PII_PLACEHOLDER = "[联系方式已剔除]"
+_INTL_PHONE_RE = re.compile(
+    r"(?<!\w)(?:\+|00)\d{1,3}[\s.-]*(?:\(?\d{1,4}\)?[\s.-]*){1,4}\d{1,4}(?!\w)"
+)
+_SELF_NAME_RE = re.compile(
+    r"\b(?:ich heiße|ich heisse|mein name ist)\s+"
+    r"[A-Za-zÄÖÜäöüß][A-Za-zÄÖÜäöüß-]+(?:\s+[A-Za-zÄÖÜäöüß][A-Za-zÄÖÜäöüß-]+)+",
+    re.IGNORECASE,
+)
+_DE_STREET_RE = re.compile(
+    r"\b[A-Za-zÄÖÜäöüß][A-Za-zÄÖÜäöüß-]*"
+    r"(?:straße|str\.|weg|platz|allee|gasse|ring)\s+\d+[a-z]?\b",
+    re.IGNORECASE,
+)
+_DE_POSTAL_CITY_RE = re.compile(
+    r"\b\d{5}\s+[A-Za-zÄÖÜäöüß][A-Za-zÄÖÜäöüß-]+"
+    r"(?:\s+[A-Za-zÄÖÜäöüß][A-Za-zÄÖÜäöüß-]+)?\b"
+)
+_CONTACT_PLACEHOLDER = "[联系方式已剔除]"
+_PERSON_PLACEHOLDER = "[个人信息已剔除]"
 
 
 def anonymize_author(author_name: str, content_id: str) -> str:
@@ -108,8 +127,12 @@ def sanitize_excerpt(text: str) -> str:
     PII 剔除必须在截断前执行：若先截断，真实邮箱/电话可能留在窗口内。
     """
     plain = _HTML_TAG_RE.sub("", text)
-    plain = _EMAIL_RE.sub(_PII_PLACEHOLDER, plain)
-    plain = _PHONE_RE.sub(_PII_PLACEHOLDER, plain)
+    plain = _DE_STREET_RE.sub(_PERSON_PLACEHOLDER, plain)
+    plain = _DE_POSTAL_CITY_RE.sub(_PERSON_PLACEHOLDER, plain)
+    plain = _SELF_NAME_RE.sub(_PERSON_PLACEHOLDER, plain)
+    plain = _INTL_PHONE_RE.sub(_CONTACT_PLACEHOLDER, plain)
+    plain = _EMAIL_RE.sub(_CONTACT_PLACEHOLDER, plain)
+    plain = _PHONE_RE.sub(_CONTACT_PLACEHOLDER, plain)
     return plain.strip()[:EXCERPT_MAX_CHARS]
 
 

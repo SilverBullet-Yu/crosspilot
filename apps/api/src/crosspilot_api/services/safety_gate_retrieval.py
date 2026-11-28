@@ -114,6 +114,9 @@ def _build_record(row: dict[str, str], url_map: dict[str, str]) -> SafetyGateRec
         published_on=parse_publication_date(row.get("publication_date") or ""),
         level=EvidenceLevel.L3,
         sample_size=1,  # 单条警报即单卡
+        market="de",
+        source_id="eu_safety_gate",
+        authorization="CC0-1.0",
     )
     # stance 一律走 stance_of_card 归一，不得手工指定绕过（L3 必然得到 insufficient）。
     card = replace(card, stance=stance_of_card(card))

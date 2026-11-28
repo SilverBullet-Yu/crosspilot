@@ -1,16 +1,18 @@
 # data/snapshots/ —— 演示快照目录（ADR-0002）
 
 本目录存放演示默认使用的本地快照（`CROSSPILOT_DATA_MODE` 默认 `snapshot`，只读本目录，
-`live` 需显式开启）。当前仅有知乎 L2 中文侧子目录 `zhihu/`。
+`live` 需显式开启）。当前包含知乎 L2 中文侧子目录 `zhihu/`；德国 L1 仅在取得品牌授权或平台书面许可后，才可通过本地导入脚本写入 `l1/`。
 
 ## 目录结构
 
 ```
 data/snapshots/
   zhihu/<查询词>.json   # 知乎站内搜索快照，文件名 = 查询词（非法字符替换为 _）
+  l1/<查询词>.json      # 旧路径或同内容幂等快照；当前目录不存在
+  l1/<查询词>_<时间戳>_<哈希>.json  # --versioned 版本化导入；当前目录不存在
 ```
 
-快照文件 schema（唯一校验口径：`apps/api/src/crosspilot_api/services/zhihu_snapshot.py`）：
+知乎快照文件 schema（校验口径：`apps/api/src/crosspilot_api/services/zhihu_snapshot.py`；德国 L1 的校验、授权与哈希口径见 `l1_import.py`）：
 顶层必现 `generated_at_utc` / `source_api` / `cards[]`；卡字段对齐
 `packages/contracts/evidence-card.schema.json`（六必现字段 + stance）+ `is_demo_data`，
 另附快照扩展 `title` / `author_anonymous_id`（作者匿名化，合规最小集见
@@ -47,6 +49,21 @@ data/snapshots/
 - 链接为 API 原样返回；2026-11-21 匿名 curl 实测 403/超时为知乎反爬，浏览器可正常打开。
 - 演示撰写的样例已迁至 `apps/api/tests/fixtures/zhihu/旅行收纳包.json`（测试专用，
   全部 `is_demo_data=true`），加载器强制同一快照文件内演示/真实标识一致、不混排。
+
+## 德国 L1 评论快照
+
+当前没有已授权的德国 L1 快照。Amazon.de 公开评论候选因平台使用条件禁止未经书面许可的系统性提取、数据挖掘与商业再利用而否决；自动提取的原文与元数据已删除。只有品牌授权导出或 Amazon 书面许可的数据才能通过 `scripts/import_l1_reviews.py` 写入 `l1/`，且必须提供可审计的 `authorization_ref`。导入文件中的原始 `review_id` 会原样保留到快照、API 和前端卡面，禁止用数组下标重写。人工复核可用 `stance` / `stance_note` 覆盖规则基线；快照保留最终立场、规则票、一致度、`classification_method` 与复核说明，加载时不会重新分类。规则结果同时保留 `review_required` / `review_reasons`：仅强支持可低优先级，其他结果建议人工复核；该分流不是自动接受，也不等于模型已验证。
+
+| L1 治理字段 | 作用 |
+|---|---|
+| `authorization_scope` | 至少覆盖 `internal_product_validation`；模型处理、赛事演示、公开展示分别声明，复核导出不得扩权 |
+| `claim_terms` | 自定义卖点的术语范围，进入快照哈希与 API/复核导出；未声明时整条回退并强制人工复核 |
+| `input_sha256` | 原始导入文件指纹，用于审计数据提供方交付件 |
+| `record_sha256` | 稳定内容哈希；同内容幂等、内容冲突拒写、加载时验证 |
+| `version_sha256` | 包含生成时间的版本哈希；防止时间戳篡改绕过版本校验 |
+| `source_snapshot_sha256` | 人工复核回导对应的父快照指纹，防止旧复核套用到新证据 |
+
+`--versioned` 导入会生成 `<查询词>_<时间戳>_<哈希>.json`，加载最新且哈希有效的版本；最新版本损坏时显式报错，不静默回退。
 
 ## 需要更新快照时
 

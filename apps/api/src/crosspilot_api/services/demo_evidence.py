@@ -14,8 +14,9 @@ REGISTRY 是真实外部数据源的许可与可达性唯一事实来源，虚�
 是 domain.decide 判定管道的**输入**；路由层聚合判定一律走 domain.decide，不绕过。
 
 ADR-0005 扩卡设计（2026-11-22 验证记录修正 1 / 对抗审查 C5，三状态演示）：
-- conflict 场景 = 15 support + 15 oppose + 2 重复摘录 → 去重后 30 簇、
-  两份额区间重叠 → conflicting（并排展示）；重复摘录让 R2「去重先于计数」
+- conflict 场景 = 15 support + 15 oppose + 2 重复摘录 + 1 条未归属无极性评论 + 1 条不相关评论 →
+  去重后 31 个相关簇、有极性样本仍为 30，两份额区间重叠 → conflicting（并排展示）；
+  未归属与不相关评论分开保留、不进入卖点判定。重复摘录让 R2「去重先于计数」
   与 dup_count 在演示中可见（计数不变、去重摘要可追溯）。
 - limited 场景 = 21 support + 9 oppose → n=30 过门禁，支持份额 0.7 的
   Wilson 95% 下界 0.521 刚过决定线 → supported——「有限支持」的公式化含义
@@ -24,8 +25,8 @@ ADR-0005 扩卡设计（2026-11-22 验证记录修正 1 / 对抗审查 C5，三�
   内容覆盖容量 / 功能 / 价格三个假设域（前端关键词归属可命中），
   日期在 Amazon Reviews 2023 窗口内分层分布。
 
-关于 source_url：指向 amazon_reviews_2023 数据集主页（真实站点），卡面内容为本项目
-演示撰写，并非来自该页面的具体评论；受零网络请求约束，该 URL 本机未做 HTTP 核验。
+关于 source_url：演示卡统一使用 example.com 占位链接，明确不对应真实评论页面；
+声明数据源仍为 amazon_reviews_2023，仅用于既有 L1 闸门校验。
 """
 
 from __future__ import annotations
@@ -33,16 +34,24 @@ from __future__ import annotations
 from datetime import date
 
 from ..domain.evidence import EvidenceCard, EvidenceLevel, Stance
+from .claims import infer_claim_id
 
 #: 演示卡声明模拟的 L1 数据源（REGISTRY 已登记，闸门可通过）。
 DEMO_L1_SOURCE_KEY = "amazon_reviews_2023"
 #: 演示场景的检索词。
 DEMO_QUERY = "旅行收纳包"
-#: 演示卡统一指向声明数据源的数据集主页。
-DEMO_SOURCE_URL = "https://amazon-reviews-2023.github.io/"
+#: 演示卡统一使用 example.com 占位链接，不冒充真实评论页面。
+DEMO_SOURCE_URL = "https://example.com/crosspilot-demo/l1"
 
 
-def _demo_card(excerpt: str, published_on: date, stance: Stance) -> EvidenceCard:
+def _demo_card(
+    excerpt: str,
+    published_on: date,
+    stance: Stance,
+    claim_id: str | None = None,
+    review_id: str | None = None,
+    irrelevant: bool = False,
+) -> EvidenceCard:
     """构造一张 L1 演示卡。单条模拟评论即单卡，样本量 1。"""
     return EvidenceCard(
         excerpt=excerpt,
@@ -51,9 +60,62 @@ def _demo_card(excerpt: str, published_on: date, stance: Stance) -> EvidenceCard
         published_on=published_on,
         level=EvidenceLevel.L1,
         sample_size=1,
-        stance=stance,
+        stance=Stance.INSUFFICIENT if irrelevant else stance,
         is_demo_data=True,
+        review_id=review_id,
+        claim_id=None if irrelevant else (claim_id or infer_claim_id(excerpt)),
+        market="de",
+        source_id=DEMO_L1_SOURCE_KEY,
+        authorization="模拟示例，不对应真实评论或授权数据",
+        authorization_ref="demo://crosspilot",
+        relevance="irrelevant" if irrelevant else "relevant",
     )
+
+
+DEMO_L2_CARDS: tuple[EvidenceCard, ...] = (
+    EvidenceCard(
+        excerpt="模拟从业经验：大容量收纳包更适合长途差旅，但登机箱尺寸需要单独确认。",
+        source_url="https://example.com/crosspilot-demo/l2-capacity",
+        language="zh-CN",
+        published_on=date(2026, 11, 1),
+        level=EvidenceLevel.L2,
+        sample_size=1,
+        is_demo_data=True,
+        review_id="demo-l2-capacity",
+        claim_id="capacity",
+        market="de",
+        source_id="demo_l2",
+        authorization="模拟示例，不对应真实知乎内容",
+    ),
+    EvidenceCard(
+        excerpt="模拟从业经验：多隔层便于分类，但频繁开合可能增加取物步骤。",
+        source_url="https://example.com/crosspilot-demo/l2-features",
+        language="zh-CN",
+        published_on=date(2026, 11, 2),
+        level=EvidenceLevel.L2,
+        sample_size=1,
+        is_demo_data=True,
+        review_id="demo-l2-features",
+        claim_id="features",
+        market="de",
+        source_id="demo_l2",
+        authorization="模拟示例，不对应真实知乎内容",
+    ),
+    EvidenceCard(
+        excerpt="模拟从业经验：低价需要与耐用性和退换保障一起表达。",
+        source_url="https://example.com/crosspilot-demo/l2-price",
+        language="zh-CN",
+        published_on=date(2026, 11, 3),
+        level=EvidenceLevel.L2,
+        sample_size=1,
+        is_demo_data=True,
+        review_id="demo-l2-price",
+        claim_id="price",
+        market="de",
+        source_id="demo_l2",
+        authorization="模拟示例，不对应真实知乎内容",
+    ),
+)
 
 
 # ---------------------------------------------------------------------------
@@ -252,11 +314,14 @@ _OPPOSE_POOL: tuple[tuple[str, date], ...] = (
 def _pool_cards(
     pool: tuple[tuple[str, date], ...], stance: Stance
 ) -> tuple[EvidenceCard, ...]:
-    return tuple(_demo_card(text, day, stance) for text, day in pool)
+    return tuple(
+        _demo_card(text, day, stance, review_id=f"demo-{stance.value}-{index}")
+        for index, (text, day) in enumerate(pool)
+    )
 
 
-#: 场景「证据相互冲突」：15:15 + 2 条重复摘录（一条逐字复制、一条措辞微调的
-#: 同源变体——两者聚入既有簇、不进计数，R2 与去重摘要在演示中可见）。
+#: 场景「证据相互冲突」：15:15 + 2 条重复摘录 + 1 条未归属无极性评论。
+#: 重复摘录聚入既有簇、不进计数；未归属评论保留但不进入任何卖点判定。
 _DEMO_CONFLICT_BASE = (
     _pool_cards(_SUPPORT_POOL[:15], Stance.SUPPORT)
     + _pool_cards(_OPPOSE_POOL, Stance.OPPOSE)
@@ -267,17 +332,39 @@ _DEMO_CONFLICT_DUPES = (
         "schwergängig und verklemmt sich regelmäßig.",  # 逐字复制 O1
         date(2023, 5, 19),
         Stance.OPPOSE,
+        "features",
+        "demo-conflict-dupe-1",
     ),
     _demo_card(
         "Nach drei Wochen ist der Reißverschluss des größten Würfels "
         "schwergängig und verklemmt sich regelmäßig beim Packen.",  # 同源变体（尾部追加，高相似）
         date(2023, 6, 9),
         Stance.OPPOSE,
+        "features",
+        "demo-conflict-dupe-2",
     ),
 )
 
+_DEMO_CONFLICT_UNASSIGNED = _demo_card(
+    "Die Verpackung sieht gut aus, aber der Reißverschluss klemmt.",
+    date(2023, 7, 30),
+    Stance.INSUFFICIENT,
+    "unassigned",
+    "demo-unassigned-1",
+)
+
+_DEMO_CONFLICT_IRRELEVANT = _demo_card(
+    "Der Versandkarton war beschädigt, die Rechnung war trotzdem korrekt.",
+    date(2023, 8, 2),
+    Stance.INSUFFICIENT,
+    review_id="demo-conflict-irrelevant",
+    irrelevant=True,
+)
+
 DEMO_CONFLICT_CARDS: tuple[EvidenceCard, ...] = (
-    _DEMO_CONFLICT_BASE + _DEMO_CONFLICT_DUPES
+    _DEMO_CONFLICT_BASE
+    + _DEMO_CONFLICT_DUPES
+    + (_DEMO_CONFLICT_UNASSIGNED, _DEMO_CONFLICT_IRRELEVANT)
 )
 
 #: 场景「已有有限支持」：21:9 → 过门禁、支持份额 0.7 下界 0.521 刚过决定线 → supported。

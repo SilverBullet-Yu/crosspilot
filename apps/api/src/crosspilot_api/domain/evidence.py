@@ -8,11 +8,11 @@
     Wilson 95% 区间 + 门禁 → 四值状态映射 → 全下游唯一枚举（R1）。
 
 判定状态语义（AVeriTeC 四标签；R1：全系统唯一判定枚举，不得发明第五值）：
-    supported    支持份额 95% 下界 > 0.5（决定性多数支持）
-    refuted      反对份额 95% 下界 > 0.5（决定性多数反对）
-    conflicting  双方票数 > 0 且两份额区间重叠（95% 置信下难分高下；
-                 与标注器分歧不同——R4：标注冲突 ≠ 证据冲突）
+    supported    支持份额 95% 下界 > 0.5（当前样本内决定性多数支持）
+    refuted      反对份额 95% 下界 > 0.5（当前样本内决定性多数反对）
+    conflicting  双方票数 > 0 且未形成决定性多数（样本内分歧，不等于独立证据冲突）
     insufficient 无 L1 / 样本低于门禁 / 无极性信号
+所有区间只描述当前样本，不外推非随机评论样本到总体消费者。
 """
 
 from __future__ import annotations
@@ -81,6 +81,12 @@ class EvidenceGrade(StrEnum):
     VERY_LOW = "very-low"
 
 
+INFERENCE_NOTE = (
+    "当前评论通常为非随机样本，Wilson 区间仅描述样本内不确定性，"
+    "不能直接外推为总体消费者偏好。"
+)
+
+
 @dataclass(frozen=True)
 class StanceVotes:
     """多标注器立场票（A4 两票制：对抗审查 C1 修正——原三票引用了不存在的词表标注器）。
@@ -113,10 +119,31 @@ class EvidenceCard:
     stance_votes: StanceVotes | None = None
     #: 标注器一致度（R4：None=单标注器无法评估；False=标注器分歧）
     annotator_agreement: bool | None = None
+    #: 最终立场的分类方法；人工覆盖时保留规则票，不冒充模型已验证。
+    classification_method: str | None = None
+    #: 人工复核说明，最多 500 字符。
+    classification_note: str | None = None
+    #: 规则结果是否需要人工复核；人工覆盖后为 false。
+    review_required: bool | None = None
+    #: 复核分流理由，便于卡面与 dry-run 解释。
+    review_reasons: tuple[str, ...] = ()
     #: GRADE 式静态注记（仅 L2/L3；当前实现态恒 None，见 EvidenceGrade）
     grade: EvidenceGrade | None = None
     #: GRADE 降级理由（静态注记；空 = 无降级）
     downgrade_reasons: tuple[str, ...] = ()
+    #: 卖点假设 ID；缺失时仅用于旧数据兼容，不进入新的卖点级判定。
+    claim_id: str | None = None
+    #: 自定义卖点术语；同一 claim_id 的所有 L1 卡必须一致，空值表示回退整条规则票。
+    aspect_terms: tuple[str, ...] = ()
+    #: 原始评论 ID；真实 L1 导入必须保留，不得用数组下标重写。
+    review_id: str | None = None
+    #: 来源市场与授权信息；真实 L1 导入必须提供。
+    market: str | None = None
+    source_id: str | None = None
+    authorization: str | None = None
+    authorization_ref: str | None = None
+    #: 与当前假设是否相关；irrelevant 卡保留但不进入卖点判定。
+    relevance: str = "relevant"
 
     def __post_init__(self) -> None:
         missing = [
@@ -126,6 +153,35 @@ class EvidenceCard:
         ]
         if missing:
             raise ValueError(f"证据卡缺少必现字段: {missing}")
+        if self.relevance not in {"relevant", "irrelevant"}:
+            raise ValueError(f"证据卡 relevance 非法: {self.relevance}")
+        if self.aspect_terms:
+            if self.level is not EvidenceLevel.L1:
+                raise ValueError("aspect_terms 仅用于 L1 证据卡")
+            if self.relevance != "relevant":
+                raise ValueError("不相关评论不得设置 aspect_terms")
+            if len(self.aspect_terms) > 20 or any(
+                not isinstance(term, str) or not term.strip() or len(term) > 80
+                for term in self.aspect_terms
+            ):
+                raise ValueError("aspect_terms 须为 1–20 个非空术语，每个不超过 80 字符")
+        if self.classification_method is not None:
+            if self.level is not EvidenceLevel.L1:
+                raise ValueError("classification_method 仅用于 L1 证据卡")
+            if self.classification_method not in {"rule", "manual", "llm", "ensemble"}:
+                raise ValueError(f"classification_method 非法: {self.classification_method}")
+        if self.classification_note is not None:
+            if not self.classification_method:
+                raise ValueError("classification_note 需要 classification_method")
+            if len(self.classification_note) > 500:
+                raise ValueError("classification_note 超过 500 字符")
+        if self.review_required is not None:
+            if self.level is not EvidenceLevel.L1:
+                raise ValueError("review_required 仅用于 L1 证据卡")
+            if not isinstance(self.review_required, bool):
+                raise ValueError("review_required 必须是布尔值或 None")
+        if self.review_reasons and self.review_required is None:
+            raise ValueError("review_reasons 需要 review_required")
 
 
 @dataclass(frozen=True)
@@ -148,15 +204,15 @@ class Decision:
     dedup_duplicated: int  # 被并簇的摘录数（n_l1 - dedup_clusters）
     dedup_by_card: tuple[DedupInfo | None, ...] = field(default=())
     power_note: str = ""
+    inference_note: str = INFERENCE_NOTE
 
 
 def can_support_preference_claim(cards: list[EvidenceCard]) -> bool:
-    """判断一组证据能否支撑「目标市场消费者偏好」结论。
+    """只有通过门禁并形成样本内决定性多数的 L1 证据才可支撑偏好表述。
 
-    硬约束 1：仅 L1 证据可以。L2（知乎）与 L3（宏观统计）无论数量多少，
-    都只能产出待验证问题，不得直接写入偏好结论。
+    该判断仍受非随机样本限制，不得外推为总体消费者偏好。
     """
-    return any(card.level is EvidenceLevel.L1 for card in cards)
+    return decide(cards).state in {DecisionState.SUPPORTED, DecisionState.REFUTED}
 
 
 def stance_of_card(card: EvidenceCard) -> Stance:
@@ -174,7 +230,11 @@ def decide(cards: list[EvidenceCard]) -> Decision:
     L2/L3 卡绝不进判定（硬约束 1；R5 同源纪律）；insufficient 卡不进区间
     分母（对抗审查 C4 口径），只单独报告簇数。
     """
-    l1_positions = [i for i, c in enumerate(cards) if c.level is EvidenceLevel.L1]
+    l1_positions = [
+        i
+        for i, c in enumerate(cards)
+        if c.level is EvidenceLevel.L1 and c.relevance == "relevant"
+    ]
     dedup_by_card: list[DedupInfo | None] = [None] * len(cards)
 
     if not l1_positions:
@@ -194,7 +254,10 @@ def decide(cards: list[EvidenceCard]) -> Decision:
         )
 
     l1_cards = [cards[i] for i in l1_positions]
-    infos = deduplicate([card.excerpt for card in l1_cards])
+    infos = deduplicate(
+        [card.excerpt for card in l1_cards],
+        [card.stance.value for card in l1_cards],
+    )
     for pos, i in enumerate(l1_positions):
         dedup_by_card[i] = infos[pos]
 
@@ -248,3 +311,19 @@ def decide(cards: list[EvidenceCard]) -> Decision:
         dedup_by_card=tuple(dedup_by_card),
         power_note=power_note(n_polarized),
     )
+
+
+def decide_by_claim(
+    cards: list[EvidenceCard], claim_ids: tuple[str, ...]
+) -> dict[str, Decision]:
+    """按卖点假设分别判定，未归属卡片不进入任何卖点结论。"""
+    return {
+        claim_id: decide(
+            [
+                card
+                for card in cards
+                if card.claim_id == claim_id and card.relevance == "relevant"
+            ]
+        )
+        for claim_id in claim_ids
+    }

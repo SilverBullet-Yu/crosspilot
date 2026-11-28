@@ -65,17 +65,15 @@ const isConflict = computed(
     props.group.support.some((card) => card.level === "L1") &&
     props.group.oppose.some((card) => card.level === "L1"),
 )
-const lacksL1 = computed(
-  () =>
-    !props.group.support.some((card) => card.level === "L1") &&
-    !props.group.oppose.some((card) => card.level === "L1"),
-)
+const lacksL1 = computed(() => props.group.decision.n_l1 <= 0)
+const l1SupportCount = computed(() => props.group.support.filter((card) => card.level === "L1").length)
+const l1OpposeCount = computed(() => props.group.oppose.filter((card) => card.level === "L1").length)
+const realSupportCount = computed(() => support.value.real.filter((item) => item.card.level === "L1").length)
+const demoSupportCount = computed(() => support.value.demo.filter((item) => item.card.level === "L1").length)
+const realOpposeCount = computed(() => oppose.value.real.filter((item) => item.card.level === "L1").length)
+const demoOpposeCount = computed(() => oppose.value.demo.filter((item) => item.card.level === "L1").length)
 
-const summary = computed(() => {
-  if (props.group.status === "conflict") return "支持与反对的一手反馈同时出现，先保留分歧，不替市场下结论。"
-  if (props.group.status === "support") return "当前假设出现一手支持，但样本有限，仍需扩大样本复核。"
-  return "当前假设尚缺一手消费者反馈，不能据此判断市场偏好。"
-})
+const summary = computed(() => props.group.statusNote)
 
 const focusedAnchor = ref("")
 const expandedSupport = ref(false)
@@ -118,7 +116,7 @@ onBeforeUnmount(() => {
     </header>
 
     <p class="hypo__summary">{{ summary }}</p>
-    <p v-if="!lacksL1" class="hypo__probe">核实问题：{{ props.group.hypothesis.probe }}</p>
+    <p class="hypo__probe">核实问题：{{ props.group.hypothesis.probe }}</p>
     <div v-if="citationItems.length" class="hypo__citations" aria-label="证据定位">
       <button
         v-for="item in citationItems"
@@ -134,12 +132,14 @@ onBeforeUnmount(() => {
 
     <div class="statrow">
       <div class="stat stat--support">
-        <div class="stat__num num">{{ props.group.support.length }}</div>
+        <div class="stat__num num">{{ l1SupportCount }}</div>
         <div class="stat__label">支持（L1）</div>
+        <small v-if="demoSupportCount" class="stat__detail">真实 {{ realSupportCount }} · 演示 {{ demoSupportCount }}</small>
       </div>
       <div class="stat stat--oppose">
-        <div class="stat__num num">{{ props.group.oppose.length }}</div>
+        <div class="stat__num num">{{ l1OpposeCount }}</div>
         <div class="stat__label">反对（L1）</div>
+        <small v-if="demoOpposeCount" class="stat__detail">真实 {{ realOpposeCount }} · 演示 {{ demoOpposeCount }}</small>
       </div>
       <div class="stat stat--missing">
         <div class="stat__num num">{{ props.group.missing.length }}</div>
@@ -306,13 +306,13 @@ onBeforeUnmount(() => {
       </button>
     </div>
 
-    <div v-if="lacksL1" class="empty-state">
-      <p class="empty-state__title">缺少有效数据（L1 零样本）</p>
-      <p class="empty-state__body">
-        该假设下暂无目标市场（德国）一手消费者反馈，任何结论都不可用。
+    <div v-if="props.group.evidenceInsufficient" class="empty-state">
+      <p class="empty-state__title">
+        {{ lacksL1 ? "缺少有效数据（L1 零样本）" : "证据不足（未过判定门禁）" }}
       </p>
+      <p class="empty-state__body">{{ props.group.statusNote }}</p>
       <p class="empty-state__probe">应核实的方向：{{ props.group.hypothesis.probe }}</p>
-      <p class="empty-state__next">→ 对应的待验证问题见右侧验证建议</p>
+      <p class="empty-state__next">→ 对应的待验证问题见右侧验证建议；有一条支持也不等于假设成立。</p>
     </div>
   </section>
 </template>

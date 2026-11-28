@@ -36,7 +36,7 @@
 
 4. **六条对齐规则**（约束全部新增字段与阶段顺序）：
    - **R1 单一枚举**：全系统只有 AVeriTeC 四值一个状态枚举；任何方法输出要么映射进它，要么不进判定管道；聚合层不得发明第五状态。
-   - **R2 去重先于计数**：立场计数 k/n 必须基于去重后的独立证据单元；管道顺序固定为采样→去重→抽取→计数，反序则区间有偏。
+   - **R2 去重先于计数**：立场计数 k/n 必须基于去重后的独立证据单元；管道顺序固定为采样→去重→抽取→计数，反序则区间有偏。去重只合并相同立场，相同或近似文本下的支持/反对不得互相吞并。
    - **R3 置信语义分字段、不合并**：`stance_interval`（统计）、`annotator_agreement`（投票吻合）、`grade`（GRADE 证据质量）三种「置信」禁止加权成一个数；判定按固定次序消费：门禁（grade=L1 才可判定）→ 区间 → 冲突。
    - **R4 标注冲突 ≠ 证据冲突**：标注器（规则 vs LLM）对同一文本分歧 = 标注器不确定性，进 `annotator_agreement` 并推向 insufficient；两个独立来源相反 = `conflicting`（并排展示）。避免 AVeriTeC 文献中的 Conflicting→NEE 误判模式。
    - **R5 旁路防火墙**：关联挖掘产出的是问题对象不是证据卡；源自 L3，受硬约束 1 管辖，绝不进 `resolve_stance`（与「L2 不进判定输入」同源纪律）。
@@ -70,8 +70,8 @@
 
 - **成立**：决策 1 挂接模式已被 `l2_cards`/`l2_notice` 包络扩展实证（`routers/evidence.py`）；决策 5 与代码现状一致（`stance_baseline.py` 零 ML 依赖零新包、`stance_llm.py` 属推理）；决策 6 成本估计合理（Wilson ~5 行公式、聚合器输入 `StanceResult`+`RuleHit` 已就绪）；引用核实无误（AVeriTeC EMNLP 2024 四标签、GRADE、Wilson 1927、SR 11-7）。
 - **修正 1（A0，必做）**：现有演示夹具为单卡——conflict n=4、limited n=2（`demo_evidence.py`）。R3 门禁将把两个演示场景全部打成 insufficient，演示叙事崩塌。必做迁移：扩卡至 n≥30（星级/时间分层），扩卡后 conflict→`conflicting`（并排）、limited→`insufficient`（区间跨 0.5），两场景精确演示新判定状态；连带同步 StanceBanner / EvidenceStance / 演示说明 / 录屏脚本 / check_web.sh 断言。
-- **修正 2（A2 前置）**：决策 3 留白了 state 映射公式。随 A2 锁定：门禁（n≥30 且 level=L1）→ Wilson 95% 区间（**分母=去重后有极性样本，insufficient 计数单独报告**）→ 下界>0.5 → supported；上界<0.5 → refuted；区间含 0.5 且两极去重计数均≥最小质量阈值 → conflicting；否则 insufficient。公式随实现写入测试。
-- **修正 3（A3 实现）**：L1 样本量 ≤数百时用精确字符 3-gram Jaccard 全对比 + 并查集聚类替代 MinHash 近似——精确值可入 provenance、实现减半（~30 行）、阈值语义直白；MinHash 留作规模化升级路径（R2 顺序纪律不变）。
+- **修正 2（A2 前置）**：决策 3 留白了 state 映射公式。随 A2 锁定：门禁（n≥30 且 level=L1）→ Wilson 95% 区间（**分母=去重后有极性样本，insufficient 计数单独报告**）→ support 下界>0.5 → supported；oppose 下界>0.5 → refuted；双方票数均>0 且两份额区间重叠 → conflicting；否则 insufficient。公式随实现写入测试。
+- **修正 3（A3 实现）**：L1 样本量 ≤数百时用精确字符 3-gram Jaccard 全对比 + 并查集聚类替代 MinHash 近似——精确值可入 provenance、实现减半（~30 行）、阈值语义直白；MinHash 留作规模化升级路径（R2 顺序纪律不变）。2026-11-28 补充：聚类键加入立场，只有同立场评论可合并，避免相反标注被静默丢弃。
 - **澄清**：`state` 四值拆分**不是向后兼容变更**——现状冲突→oppose（`domain/evidence.py`），前端 `StanceBanner` 以 oppose 渲染「证据相互冲突」。需 schema→frozen dataclass→出参模型→前端类型/组件→check_web.sh 断言一次性同步，无中间态。
 - **实数据跑通**：德国 L1 到位前，判定链以美国市场 L1 试点（`amazon_reviews_2023`，已在库）做端到端真实输入，避免沦为死代码；对外遵守 manifest `tier_caveat`（美国试点≠德国结论）。
 
@@ -81,7 +81,7 @@
 
 - **C1（决策 3，A4）三票制引用不存在的标注器**：`stance_votes {rule, llm, lexicon}` 中「双语词表」票无代码对应物（`stance_baseline` 的词典是 rule 票的内部组件）。修正：两票 `{rule, llm}`，llm 凭据缺省时 `votes.llm=null`（R6）；一致取一致，分歧 → `annotator_agreement=false` 推向 insufficient（R4）。
 - **C2（决策 3，A1）判定级字段层级错位**：`state` / `stance_interval` / `gate_status` / `recommended_tier` 是卡集合的函数，落点是包络（`EvidenceResponse`）不是每张卡；按「证据卡扩展字段」字面执行会产生全卡 `state=null` 脏字段。修正：卡级（`dedup`/`stance_votes`/`annotator_agreement`/`grade`/`downgrade_reasons`）进 evidence-card.schema.json；判定级进包络与前端响应校验。
-- **C3（A2）conflicting 判据数学错误**：「区间含 0.5 → conflicting」在 20:10（2:1 明显主导，support Wilson CI [0.49,0.81]）时误判 conflicting。修正：conflicting = support 份额区间与 oppose 份额区间**重叠**（15:15 → 重叠 ✓；20:10 → 不重叠，落 insufficient，即 95% 置信下无法排除接近 50% 的诚实输出）。边界用例锁定：20:10→insufficient、21:30→supported（下界 0.521）、15:15→conflicting。
+- **C3（A2）conflicting 判据数学错误**：「区间含 0.5 → conflicting」在 20:10（2:1 明显主导，support Wilson CI [0.49,0.81]）时误判 conflicting。修正：conflicting = support 份额区间与 oppose 份额区间**重叠**（15:15 → 重叠 ✓；20:10 → 不重叠，落 insufficient，即 95% 置信下无法排除接近 50% 的诚实输出）。边界用例锁定：20:10→conflicting、21:30→supported（下界 0.521）、15:15→conflicting。
 - **C4（A2）门禁 n 口径歧义**：验证记录中「门禁 n≥30」未定义 n。修正：门禁 n 与区间分母统一为**去重后有极性样本数**（insufficient 比例单独报告）——否则 30 条中 28 条 insufficient 时门禁虚过、区间极宽。
 - **C5（A0）演示映射升级**：limited 场景从 insufficient（验证记录原设计）改为 21/30→`supported`（「有限」=区间宽 [0.52,0.83] 的量化表达）；三场景各演示一状态（conflicting/supported/insufficient），前端「已有有限支持」文案无需改动，跨层同步面最小。
 - **C6（A3）短文本膨胀守卫**：短通用好评 3-gram Jaccard 虚高误聚（"Sehr gut!"/"Super gut!" 类）。守卫：<20 字符不参与聚类 + 阈值 0.85+（宁少合并，R6），误聚案例入测试。

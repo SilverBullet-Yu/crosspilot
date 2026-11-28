@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
 from datetime import date
 
 import pytest
@@ -46,8 +47,10 @@ def test_l3_alone_cannot_support_preference_claim() -> None:
     assert can_support_preference_claim([card(EvidenceLevel.L3)]) is False
 
 
-def test_l1_supports_claim() -> None:
-    assert can_support_preference_claim([card(EvidenceLevel.L1)]) is True
+def test_l1_requires_minimum_sample_for_claim() -> None:
+    assert can_support_preference_claim([card(EvidenceLevel.L1)]) is False
+    cards = [replace(card(EvidenceLevel.L1), excerpt=f"示例摘录 {i}") for i in range(30)]
+    assert can_support_preference_claim(cards) is True
 
 
 def test_conflict_is_preserved_not_smoothed() -> None:

@@ -6,13 +6,21 @@
   "required": ["excerpt", "source_url", "language", "published_on", "level", "sample_size"],
   "properties": {
     "excerpt": { "type": "string", "minLength": 1, "description": "原文摘录，可追溯" },
-    "source_url": { "type": "string", "format": "uri", "description": "必须可真实打开" },
+    "source_url": { "type": "string", "format": "uri", "description": "真实卡必须可真实打开；演示卡可使用 example.com 占位，但必须 is_demo_data=true" },
     "language": { "type": "string", "description": "BCP-47，如 de / zh-CN" },
     "published_on": { "type": "string", "format": "date" },
     "level": { "enum": ["L1", "L2", "L3"], "description": "L2/L3 不得单独支撑偏好结论" },
     "sample_size": { "type": ["integer", "null"], "description": "null 须在卡面标注偏差" },
     "stance": { "enum": ["support", "oppose", "insufficient"], "description": "卡级立场信号（判定管道输入）；判定输出见包络 decision.state" },
     "is_demo_data": { "type": "boolean", "default": false, "description": "true 时必须显式标识「演示数据」，不与真实反馈同卡混排" },
+    "claim_id": { "type": ["string", "null"], "description": "卖点假设 ID；预置 capacity/features/price，也支持小写字母/数字/-/_ 的自定义 ID；相关但未归属为 unassigned，不相关评论为 null" },
+    "aspect_terms": { "type": "array", "items": { "type": "string", "minLength": 1, "maxLength": 80 }, "maxItems": 20, "default": [], "description": "自定义卖点术语范围；仅 L1 相关评论可用，同一 claim_id 必须一致；空数组表示回退整条规则票" },
+    "review_id": { "type": ["string", "null"], "description": "原始评论 ID；真实 L1 必须保留导入文件中的值，不得用数组下标重写" },
+    "market": { "type": ["string", "null"], "description": "来源市场，如 de" },
+    "source_id": { "type": ["string", "null"], "description": "注册或导入来源 ID" },
+    "authorization": { "type": ["string", "null"], "description": "授权或许可说明；真实 L1 导入必须提供" },
+    "authorization_ref": { "type": ["string", "null"], "description": "授权合同编号、品牌导出记录或平台书面许可编号；真实 L1 导入必须提供" },
+    "relevance": { "enum": ["relevant", "irrelevant"], "default": "relevant", "description": "与当前卖点假设是否相关；irrelevant 保留但不参与判定" },
     "dedup": {
       "type": ["object", "null"],
       "default": null,
@@ -41,6 +49,29 @@
       "default": null,
       "description": "标注器一致度：null=单标注器无法评估；false=标注器分歧（R4：标注冲突≠证据冲突，分歧不产生 conflicting 判定）"
     },
+    "classification_method": {
+      "type": ["string", "null"],
+      "enum": ["rule", "manual", "llm", "ensemble", null],
+      "default": null,
+      "description": "最终立场分类方法；仅 L1。manual 表示人工覆盖规则基线，不代表模型已验证"
+    },
+    "classification_note": {
+      "type": ["string", "null"],
+      "maxLength": 500,
+      "default": null,
+      "description": "人工复核说明；需要 classification_method"
+    },
+    "review_required": {
+      "type": ["boolean", "null"],
+      "default": null,
+      "description": "规则立场结果是否需要人工复核；仅 L1。false 不等于模型已验证"
+    },
+    "review_reasons": {
+      "type": "array",
+      "items": { "type": "string" },
+      "default": [],
+      "description": "复核分流理由；需要 review_required"
+    },
     "grade": {
       "type": ["string", "null"],
       "enum": ["high", "moderate", "low", "very-low", null],
@@ -54,5 +85,40 @@
       "description": "GRADE 降级理由（静态注记）；空数组 = 无降级"
     }
   },
+  "allOf": [
+    {
+      "if": { "properties": { "level": { "const": "L1" } }, "required": ["level"] },
+      "then": {
+        "required": ["market", "source_id", "authorization", "authorization_ref"],
+        "properties": {
+          "market": { "type": "string", "minLength": 1 },
+          "source_id": { "type": "string", "minLength": 1 },
+          "authorization": { "type": "string", "minLength": 1 },
+          "authorization_ref": { "type": "string", "minLength": 1 }
+        },
+        "if": { "properties": { "is_demo_data": { "const": false } } },
+        "then": {
+          "required": ["review_id"],
+          "properties": { "review_id": { "type": "string", "minLength": 1 } }
+        },
+        "anyOf": [
+          {
+            "properties": {
+              "relevance": { "const": "relevant" },
+              "claim_id": { "type": "string", "minLength": 1 }
+            },
+            "required": ["claim_id"]
+          },
+          {
+            "properties": {
+              "relevance": { "const": "irrelevant" },
+              "claim_id": { "type": "null" }
+            },
+            "required": ["relevance"]
+          }
+        ]
+      }
+    }
+  ],
   "additionalProperties": false
 }

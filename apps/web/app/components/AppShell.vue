@@ -14,6 +14,7 @@ defineProps<{ /** 顶栏面包屑当前页名 */ crumb: string }>()
 const NAV = [
   { path: "/", label: "产品概览", icon: "home" },
   { path: "/workbench", label: "卖点验证工作台", icon: "grid" },
+  { path: "/review", label: "L1 人工复核", icon: "review" },
   { path: "/history", label: "历史验证项目", icon: "clock" },
 ] as const
 
@@ -39,6 +40,7 @@ function toggleTheme() {
   localStorage.setItem("crosspilot-theme", theme.value)
 }
 const modeLabel = computed(() => {
+  if (route.path === "/review") return "L1 复核 · 本机保存"
   if (route.path !== "/workbench") return "演示模式 · Mock 数据"
   return String(route.query.scenario ?? "real") === "real"
     ? "真实快照 · 本地数据"
@@ -90,7 +92,7 @@ const modeLabel = computed(() => {
           <svg v-if="n.icon === 'home'" class="side__navicon" viewBox="0 0 16 16" aria-hidden="true">
             <path d="M2.5 7.5 8 2.8l5.5 4.7V13a.9.9 0 0 1-.9.9h-2.7v-3.4H6.1v3.4H3.4a.9.9 0 0 1-.9-.9Z" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round" />
           </svg>
-          <svg v-else-if="n.icon === 'grid'" class="side__navicon" viewBox="0 0 16 16" aria-hidden="true">
+          <svg v-else-if="n.icon === 'grid' || n.icon === 'review'" class="side__navicon" viewBox="0 0 16 16" aria-hidden="true">
             <g fill="none" stroke="currentColor" stroke-width="1.3">
               <rect x="2.5" y="2.5" width="4.6" height="4.6" rx="1" />
               <rect x="8.9" y="2.5" width="4.6" height="4.6" rx="1" />

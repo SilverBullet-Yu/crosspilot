@@ -21,6 +21,18 @@ dist/
 # 数据：快照入库，原始大文件不入库
 data/snapshots/*.parquet
 
+# 授权德国 L1 默认仅本地保留；公开展示需另获 public_display 授权并人工复核
+data/snapshots/l1/
+
+# 真实案例采样/评测报告默认仅本地保留，避免泄露商品、查询词与样本结构
+data/reports/l1/
+
+# LLM 评测缓存仅本地保留；新缓存只写哈希/立场/模型元数据，不写原文或模型自述
+data/sources/_eval_cache/
+
+# 运营试用待确认草稿仅本地保留；确认记录可入库留痕
+data/operator_trials/*-pending-*.json
+
 # 快照原始 API 响应不入库（D-12 治理：公开仓库仅保留脱敏衍生件）。
 # capture_zhihu_snapshot.py 会落盘脱敏原件供本地逐字复核，
 # 快照 JSON 的 raw_payload_ref 登记其相对路径与 SHA-256。
@@ -38,5 +50,6 @@ Thumbs.db
 # 公开仓库不得包含该数据；本地文件保留供评测，凭 data/sources/_scripts/fetch_marc.py 复现。
 data/sources/marc/*.csv
 
-# 本地设计验收产物（不进入公开仓库）
+# 本地设计与学习日志（不进入公开仓库）
 .taste-skill/
+.learnings/

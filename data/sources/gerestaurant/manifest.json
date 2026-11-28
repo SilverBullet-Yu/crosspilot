@@ -3,7 +3,7 @@
   "window_end": "2026-12-31",
   "source": "gerestaurant",
   "tier": "benchmark",
-  "license": "CC-BY-4.0",
+  "license": "CC-BY-4.0（上游 LICENSE 待确认）",
   "requires_credential": false,
   "corpus_type": "benchmark",
   "time_coverage_applicable": false,
@@ -59,6 +59,6 @@
     "phone"
   ],
   "pii_scrub_scope": "主表 text 列；raw/ 保留原文（不入库）",
-  "license_note": "上游仓库无 LICENSE 文件；CC-BY-4.0 依 REGISTRY 既有登记与底层Google Maps 评论内容的 CC BY 4.0 条款，商用须署名（引用论文）",
+  "license_note": "上游仓库无 LICENSE 文件；CC-BY-4.0 仅为既有登记与底层 Google Maps 评论条款的推定，正式商用前须向作者确认，当前按不可商用保守处理",
   "domain_caveat": "餐厅域，不可外推为商品域；只作基线评测，不进证据卡"
 }

@@ -53,7 +53,7 @@
 > 不随仓库分发（本地保留，凭 `_scripts/fetch_marc.py` 复现），见其 README 首节；
 > 其余来源许可均允许随仓库分发并已在各源 README 署名。
 
-**L1\* 说明**：`amazon_reviews_2023` 数据集类别是一手消费者反馈（L1），但实测为 **Amazon.com 美国全站数据，无 marketplace/language 列，无法筛出德国子集**（官方 tags 标 language:en）——对德国市场不构成 L1 证据，不得用英文评论冒充德国市场证据，详见其 README 第二节。其余四个来源均为 L3，按 `docs/CONSTRAINTS.md` 硬约束 1，不能单独支撑消费者偏好结论，只能作市场语境、监管信号与方法论引用。`gerestaurant/` 为 BENCHMARK 基准（餐厅域），只作立场基线评测，不进证据卡；`usage_bielefeld/` 为 BENCHMARK 基准（商品域 span 标注，无文本层），只作 span 级评测基准，不进证据卡。
+**L1\* 说明**：`amazon_reviews_2023` 数据集类别是一手消费者反馈（L1），但实测为 **Amazon.com 美国全站数据，无 marketplace/language 列，无法筛出德国子集**（官方 tags 标 language:en）——对德国市场不构成 L1 证据，不得用英文评论冒充德国市场证据，详见其 README 第二节。其余五个来源均为 L3，按 `docs/CONSTRAINTS.md` 硬约束 1，不能单独支撑消费者偏好结论，只能作市场语境、监管信号与方法论引用。`gerestaurant/` 为 BENCHMARK 基准（餐厅域），只作立场基线评测，不进证据卡；`usage_bielefeld/` 为 BENCHMARK 基准（商品域 span 标注，无文本层），只作 span 级评测基准，不进证据卡。
 
 ### 2.1 已知缺口（写在显眼处，避免误用）
 
@@ -134,7 +134,7 @@
 | `gerestaurant/` | 德语餐厅评论标注基准 | **餐厅域非商品域**，且金标为标注者判断，只用于基线评测 |
 | `usage_bielefeld/` | 英德商品评论标注基准（Bielefeld USAGE） | **无文本层**（公开版不含评论原文，版权），只有 span 标注与短语词面，不构成一手反馈文本 |
 
-解除该缺口的唯一路径是品牌方授权的德国站反馈导出，详见 `docs/status/STATUS.md` 第 1 优先事项。Amazon Reviews 2023 的接入价值在于：管线验证（镜像路径打通、四件套与两层校验跑通）+ 美国市场对照样本。
+解除该缺口的路径是品牌方授权的德国站反馈导出或平台书面许可，详见 `docs/status/STATUS.md` 第 1 优先事项。Amazon Reviews 2023 的接入价值在于：管线验证（镜像路径打通、四件套与两层校验跑通）+ 美国市场对照样本。
 
 ## 六、入库纪律
 

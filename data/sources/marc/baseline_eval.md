@@ -67,6 +67,15 @@
 > Panzerfolie  Bin überhaupt nicht zufrieden. Das Handy ist mir einmal kurz, aus minimalen Höhe ca 30cm, auf den
 > Mogelpackung  Ich sehe mit diesem Teil immer noch gleich fett aus. Für das Geld ein echter Reinfall
 
+## 人工复核分流（仅用于分流，不构成自动接受）
+
+- 低复核优先级：强支持、净分≥4、长度≥20、无否定翻转、无正负混合；覆盖 593/10000（5.9%），准确率 0.924。
+- 建议人工复核：9407/10000（94.1%），准确率 0.559。
+- 反对、否定翻转、正负混合、短评与无明确极性一律进入人工复核；低复核优先级仍建议抽检，不把规则结果当作已验证模型输出。
+- 该评测金标是评论整体星级/印象，不是 CrossPilot 的卖点级 aspect 标签；分流准确率不能替代真实授权评论上的卖点归属与立场复核。
+
+- 低优先级预测 support：593 条，准确率 0.924。
+
 ## 与 GERestaurant（餐厅域）对照
 
 - 对照口径：GERestaurant 3,078 条（同一基线、同一 STANCES 三类口径，离线重跑主表得出，与 data/sources/gerestaurant/baseline_eval.md 同源）

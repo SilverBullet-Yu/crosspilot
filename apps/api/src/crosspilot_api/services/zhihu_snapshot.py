@@ -27,6 +27,7 @@ from typing import Any
 
 from ..config import settings
 from ..domain.evidence import EvidenceCard, EvidenceLevel, stance_of_card
+from .claims import infer_claim_id
 from .zhihu_client import (
     EXCERPT_MAX_CHARS,
     ZHIHU_SEARCH_URL,
@@ -126,6 +127,10 @@ def _parse_card(raw: Any, index: int) -> EvidenceCard:
         sample_size=sample_size,
         stance=stance_value,  # 枚举值已校验
         is_demo_data=card_map["is_demo_data"],
+        claim_id=card_map.get("claim_id") or infer_claim_id(excerpt),
+        market="de",
+        source_id="zhihu",
+        authorization="公开页面摘要引用，仅作 L2 问题来源",
     )
     # stance 一律走 domain 规则复核，不信任落盘值（L2 必然 insufficient）。
     return replace(card, stance=stance_of_card(card))
@@ -203,6 +208,7 @@ def build_snapshot_document(
             "sample_size": 1,
             "stance": "insufficient",
             "is_demo_data": is_demo_data,
+            "claim_id": extraction.claim_id or infer_claim_id(extraction.excerpt),
         }
         for extraction in extractions
     ]

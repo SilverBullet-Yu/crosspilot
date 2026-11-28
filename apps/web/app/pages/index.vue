@@ -34,7 +34,7 @@ const SOURCE_LAYERS = [
 /** 判定 → 建议动作（与演示说明 8.3 映射一致；三态语义色与工作台同源） */
 const ACTIONS = [
   { tag: "已有有限支持", cls: "tag--ok", action: "扩大样本复核后，再写入详情页卖点" },
-  { tag: "证据冲突", cls: "tag--bad", action: "先验证冲突维度，不急于修改详情页" },
+  { tag: "样本分歧", cls: "tag--bad", action: "先验证冲突维度，不急于修改详情页" },
   { tag: "缺少有效数据", cls: "tag--warn", action: "启动用户访谈与评论补样" },
 ]
 
@@ -82,7 +82,7 @@ const demoNote = computed(() => {
 
 /** 真实边界用例预设（与后端 test_decision.py 用例一致） */
 const DEMO_PRESETS = [
-  { n: 30, k: 15, label: "15 : 15 → 证据相互冲突" },
+  { n: 30, k: 15, label: "15 : 15 → 样本内存在分歧" },
   { n: 30, k: 21, label: "21 : 9 → 已有有限支持" },
   { n: 30, k: 9, label: "9 : 21 → 多数反馈反对" },
 ]
@@ -167,7 +167,7 @@ const FAQS = [
               </div>
             </div>
             <div class="herocard__verdict">
-              <span class="tag tag--demo">⇄ 证据冲突</span>
+              <span class="tag tag--demo">⇄ 样本分歧</span>
               <p class="herocard__verdict-text">分区需求存在差异，先验证收纳习惯。</p>
               <NuxtLink to="/workbench?scenario=conflict" class="herocard__link">查看完整证据链 →</NuxtLink>
             </div>

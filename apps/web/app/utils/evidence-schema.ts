@@ -17,6 +17,7 @@ export type EvidenceLevel = "L1" | "L2" | "L3"
 
 /** 卡级立场信号（domain/evidence.py: Stance；判定管道的输入，非判定输出） */
 export type EvidenceStance = "support" | "oppose" | "insufficient"
+export type ClassificationMethod = "rule" | "manual" | "llm" | "ensemble"
 
 /**
  * 判定状态（domain/evidence.py: DecisionState，ADR-0005 R1 唯一判定枚举）。
@@ -47,10 +48,23 @@ export interface ValidEvidenceCard {
   sample_size: number | null
   stance: EvidenceStance
   is_demo_data: boolean
+  // ---- 来源与卖点归属（optional，向后兼容旧快照）----
+  claim_id?: string | null
+  aspect_terms?: string[]
+  review_id?: string | null
+  market?: string | null
+  source_id?: string | null
+  authorization?: string | null
+  authorization_ref?: string | null
+  relevance?: "relevant" | "irrelevant"
   // ---- ADR-0005 卡级扩展字段（全 optional，向后兼容）----
   dedup?: CardDedup | null
   stance_votes?: CardStanceVotes | null
   annotator_agreement?: boolean | null
+  classification_method?: ClassificationMethod | null
+  classification_note?: string | null
+  review_required?: boolean | null
+  review_reasons?: string[]
   grade?: "high" | "moderate" | "low" | "very-low" | null
   downgrade_reasons?: string[]
 }
@@ -75,10 +89,23 @@ const ALLOWED_KEYS = new Set([
   "sample_size",
   "stance",
   "is_demo_data",
+  // 来源与卖点归属（optional）
+  "claim_id",
+  "aspect_terms",
+  "review_id",
+  "market",
+  "source_id",
+  "authorization",
+  "authorization_ref",
+  "relevance",
   // ADR-0005 卡级扩展字段（全 optional）
   "dedup",
   "stance_votes",
   "annotator_agreement",
+  "classification_method",
+  "classification_note",
+  "review_required",
+  "review_reasons",
   "grade",
   "downgrade_reasons",
 ])
@@ -86,7 +113,7 @@ const ALLOWED_KEYS = new Set([
 /** 判定日期字符串是否为 YYYY-MM-DD 且真实存在（防止 V8 把 2026-02-30 滚动解析为 03-02） */
 function isIsoDate(value: unknown): value is string {
   if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false
-  const [y, m, d] = value.split("-").map(Number)
+  const [y = 0, m = 0, d = 0] = value.split("-").map(Number)
   const parsed = new Date(Date.UTC(y, m - 1, d))
   return (
     parsed.getUTCFullYear() === y &&
@@ -126,6 +153,37 @@ export function validateEvidenceCard(raw: unknown): CardValidation {
     errors.push(`含契约外字段: ${unknownKeys.join(", ")}`)
   }
 
+  // 来源与卖点归属为可选字符串；显式 null 与缺失都按「未标注」处理。
+  const provenance = {
+    claim_id: rawObj.claim_id,
+    review_id: rawObj.review_id,
+    market: rawObj.market,
+    source_id: rawObj.source_id,
+    authorization: rawObj.authorization,
+  }
+  for (const [key, value] of Object.entries(provenance)) {
+    if (value !== undefined && value !== null && typeof value !== "string") {
+      errors.push(`${key} 非法（须为字符串或 null）`)
+    }
+  }
+  const aspectTerms = rawObj.aspect_terms ?? []
+  if (
+    !Array.isArray(aspectTerms) ||
+    aspectTerms.length > 20 ||
+    !aspectTerms.every(
+      (term) => typeof term === "string" && term.trim().length > 0 && term.length <= 80,
+    )
+  ) {
+    errors.push("aspect_terms 非法（须为 1–20 个非空术语，每个不超过 80 字符）")
+  } else {
+    if (rawObj.level !== "L1" && aspectTerms.length > 0) {
+      errors.push("aspect_terms 仅允许用于 L1 证据卡")
+    }
+    if (rawObj.relevance === "irrelevant" && aspectTerms.length > 0) {
+      errors.push("不相关评论不得设置 aspect_terms")
+    }
+  }
+
   // 六必现字段逐一校验（CONSTRAINTS 第三节）
   if (!isNonEmptyString(rawObj.excerpt)) errors.push("缺少必现字段 excerpt（原文摘录）")
   if (!isHttpUrl(rawObj.source_url)) errors.push("缺少或非法必现字段 source_url（须为可打开的 http/https 链接）")
@@ -133,6 +191,28 @@ export function validateEvidenceCard(raw: unknown): CardValidation {
   if (!isIsoDate(rawObj.published_on)) errors.push("缺少或非法必现字段 published_on（须为 YYYY-MM-DD）")
   if (rawObj.level !== "L1" && rawObj.level !== "L2" && rawObj.level !== "L3") {
     errors.push("缺少或非法必现字段 level（仅允许 L1/L2/L3）")
+  }
+  if (rawObj.level === "L1") {
+    const requiredProvenance = ["market", "source_id", "authorization", "authorization_ref"]
+    if (rawObj.is_demo_data !== true) requiredProvenance.unshift("review_id")
+    for (const key of requiredProvenance) {
+      if (!isNonEmptyString(rawObj[key])) errors.push(`L1 缺少必现字段 ${key}`)
+    }
+    const relevance = rawObj.relevance ?? "relevant"
+    if (relevance !== "relevant" && relevance !== "irrelevant") {
+      errors.push("relevance 非法（须为 relevant/irrelevant）")
+    }
+    if (relevance === "relevant" && !isNonEmptyString(rawObj.claim_id)) {
+      errors.push("L1 相关评论缺少必现字段 claim_id")
+    }
+    if (
+      relevance === "irrelevant" &&
+      rawObj.claim_id !== undefined &&
+      rawObj.claim_id !== null &&
+      rawObj.claim_id !== ""
+    ) {
+      errors.push("L1 不相关评论不得归属到卖点")
+    }
   }
   // sample_size 键必须存在，值可为 null 或非负整数
   if (!("sample_size" in rawObj)) {
@@ -225,6 +305,67 @@ export function validateEvidenceCard(raw: unknown): CardValidation {
       invalid: { errors: ["annotator_agreement 非法（须为布尔值或 null）"], raw: rawObj },
     }
   }
+  const method = rawObj.classification_method ?? null
+  if (
+    method !== null &&
+    method !== "rule" &&
+    method !== "manual" &&
+    method !== "llm" &&
+    method !== "ensemble"
+  ) {
+    return {
+      ok: false,
+      invalid: { errors: ["classification_method 非法（仅允许 rule/manual/llm/ensemble/null）"], raw: rawObj },
+    }
+  }
+  if (method !== null && rawObj.level !== "L1") {
+    return {
+      ok: false,
+      invalid: { errors: ["classification_method 仅允许用于 L1 证据卡"], raw: rawObj },
+    }
+  }
+  const classificationNote = rawObj.classification_note ?? null
+  if (
+    classificationNote !== null &&
+    (typeof classificationNote !== "string" || classificationNote.length > 500)
+  ) {
+    return {
+      ok: false,
+      invalid: { errors: ["classification_note 非法（须为不超过 500 字符的字符串或 null）"], raw: rawObj },
+    }
+  }
+  if (classificationNote !== null && method === null) {
+    return {
+      ok: false,
+      invalid: { errors: ["classification_note 需要 classification_method"], raw: rawObj },
+    }
+  }
+  const reviewRequired = rawObj.review_required ?? null
+  if (reviewRequired !== null && typeof reviewRequired !== "boolean") {
+    return {
+      ok: false,
+      invalid: { errors: ["review_required 非法（须为布尔值或 null）"], raw: rawObj },
+    }
+  }
+  if (reviewRequired !== null && rawObj.level !== "L1") {
+    return {
+      ok: false,
+      invalid: { errors: ["review_required 仅允许用于 L1 证据卡"], raw: rawObj },
+    }
+  }
+  const reviewReasons = rawObj.review_reasons ?? []
+  if (!Array.isArray(reviewReasons) || !reviewReasons.every((reason) => typeof reason === "string")) {
+    return {
+      ok: false,
+      invalid: { errors: ["review_reasons 非法（须为字符串数组）"], raw: rawObj },
+    }
+  }
+  if (reviewReasons.length > 0 && reviewRequired === null) {
+    return {
+      ok: false,
+      invalid: { errors: ["review_reasons 需要 review_required"], raw: rawObj },
+    }
+  }
   const grade = rawObj.grade ?? null
   if (grade !== null && grade !== "high" && grade !== "moderate" && grade !== "low" && grade !== "very-low") {
     return {
@@ -251,9 +392,22 @@ export function validateEvidenceCard(raw: unknown): CardValidation {
       sample_size: rawObj.sample_size as number | null,
       stance,
       is_demo_data: isDemo,
+      claim_id: typeof rawObj.claim_id === "string" ? rawObj.claim_id : null,
+      aspect_terms: aspectTerms as string[],
+      review_id: typeof rawObj.review_id === "string" ? rawObj.review_id : null,
+      market: typeof rawObj.market === "string" ? rawObj.market : null,
+      source_id: typeof rawObj.source_id === "string" ? rawObj.source_id : null,
+      authorization: typeof rawObj.authorization === "string" ? rawObj.authorization : null,
+      authorization_ref:
+        typeof rawObj.authorization_ref === "string" ? rawObj.authorization_ref : null,
+      relevance: rawObj.relevance === "irrelevant" ? "irrelevant" : "relevant",
       dedup,
       stance_votes: votes,
       annotator_agreement: agreement as boolean | null,
+      classification_method: method as ClassificationMethod | null,
+      classification_note: classificationNote as string | null,
+      review_required: reviewRequired as boolean | null,
+      review_reasons: reviewReasons as string[],
       grade: grade as "high" | "moderate" | "low" | "very-low" | null,
       downgrade_reasons: reasons as string[],
     },

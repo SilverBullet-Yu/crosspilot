@@ -9,6 +9,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from .config import settings
+from .routers.case import router as case_router
 from .routers.evidence import router as evidence_router
 from .services.safety_gate_retrieval import warm_cache
 
@@ -34,6 +35,7 @@ app.add_middleware(
     allow_methods=["GET"],
     allow_headers=[],
 )
+app.include_router(case_router)
 app.include_router(evidence_router)
 
 

@@ -8,7 +8,7 @@ PY=".venv/Scripts/python.exe"
 [ -x "$PY" ] || { echo "未找到虚拟环境，先跑 bash scripts/bootstrap.sh" >&2; exit 2; }
 
 echo "==> ruff"
-"$PY" -m ruff check apps/api data/sources/_scripts
+"$PY" -m ruff check apps/api data/sources/_scripts scripts/import_l1_reviews.py scripts/import_operator_trial.py scripts/import_validation_rounds.py scripts/audit_case.py scripts/eval_stance_baseline.py
 
 echo "==> mypy"
 "$PY" -m mypy apps/api/src

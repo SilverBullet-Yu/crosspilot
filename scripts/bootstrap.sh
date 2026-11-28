@@ -37,7 +37,7 @@ printf '%s\n' "$ROOT/apps/api/src" > "$SITE/_crosspilot_src.pth"
 "$PY" -c "import crosspilot_api; print('    ok:', crosspilot_api.__file__)"
 
 echo "==> 配置文件"
-[ -f .env ] || { cp .env.example .env; echo "    已生成 .env，请填入密钥"; }
+[ -f .env ] || { cp .env.example .env; echo "    已生成 .env 记录模板；脚本不会自动加载，请将所需变量导出到当前 shell"; }
 
 echo "==> 前端依赖"
 if [ -f apps/web/package.json ]; then

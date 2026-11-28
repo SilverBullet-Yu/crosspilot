@@ -14,7 +14,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from crosspilot_api.config import REPO_ROOT, settings
-from crosspilot_api.domain.evidence import EvidenceLevel, Stance
+from crosspilot_api.domain.evidence import EvidenceCard, EvidenceLevel, Stance
 from crosspilot_api.main import app
 from crosspilot_api.routers.evidence import EvidenceCardOut
 from crosspilot_api.services.datasets import Tier, assert_demand_side
@@ -24,6 +24,7 @@ from crosspilot_api.services.demo_evidence import (
     DEMO_LIMITED_CARDS,
     DEMO_QUERY,
 )
+from crosspilot_api.services.l1_import import L1SnapshotData
 from crosspilot_api.services.safety_gate_retrieval import (
     EXPECTED_NEAR_NEIGHBOR_COUNT,
     NEAR_NEIGHBOR_CATEGORIES,
@@ -47,8 +48,20 @@ CARD_ALLOWED = set(CARD_REQUIRED) | {
     "dedup",
     "stance_votes",
     "annotator_agreement",
+    "classification_method",
+    "classification_note",
+    "review_required",
+    "review_reasons",
     "grade",
     "downgrade_reasons",
+    "claim_id",
+    "aspect_terms",
+    "market",
+    "source_id",
+    "authorization",
+    "authorization_ref",
+    "relevance",
+    "review_id",
 }
 OFFICIAL_URL_PREFIX = "https://ec.europa.eu/safety-gate-alerts/screen/webReport/alertDetail/"
 
@@ -71,7 +84,44 @@ def assert_card_matches_schema(card: dict[str, Any]) -> None:
     assert card["stance"] in {"support", "oppose", "insufficient"}
     assert card["sample_size"] is None or isinstance(card["sample_size"], int)
     assert isinstance(card["is_demo_data"], bool)
+    method = card.get("classification_method")
+    assert method in {None, "rule", "manual", "llm", "ensemble"}
+    note = card.get("classification_note")
+    assert note is None or (isinstance(note, str) and len(note) <= 500 and method is not None)
+    if method is not None:
+        assert card["level"] == "L1"
+    review_required = card.get("review_required")
+    assert review_required is None or isinstance(review_required, bool)
+    review_reasons = card.get("review_reasons", [])
+    assert isinstance(review_reasons, list) and all(
+        isinstance(reason, str) for reason in review_reasons
+    )
+    if review_reasons:
+        assert review_required is not None
+    if review_required is not None:
+        assert card["level"] == "L1"
+    aspect_terms = card.get("aspect_terms", [])
+    assert isinstance(aspect_terms, list) and len(aspect_terms) <= 20
+    assert all(
+        isinstance(term, str) and term.strip() and len(term) <= 80
+        for term in aspect_terms
+    )
+    if aspect_terms:
+        assert card["level"] == "L1"
+        assert card.get("relevance", "relevant") == "relevant"
     assert str(card["source_url"]).startswith("https://")
+    if card["level"] == "L1":
+        required_provenance = ("market", "source_id", "authorization", "authorization_ref")
+        if not card["is_demo_data"]:
+            required_provenance = ("review_id", *required_provenance)
+        for key in required_provenance:
+            assert isinstance(card.get(key), str) and card[key].strip(), f"L1 缺 {key}"
+        if card.get("relevance", "relevant") == "relevant":
+            assert isinstance(card.get("claim_id"), str) and card["claim_id"].strip(), (
+                "L1 相关评论缺 claim_id"
+            )
+        else:
+            assert card.get("claim_id") in (None, "")
     datetime.strptime(card["published_on"], "%Y-%m-%d")  # schema format=date
     # ADR-0005 卡级扩展字段轻校验（optional；出现时结构须合规）
     dedup = card.get("dedup")
@@ -192,8 +242,8 @@ def test_real_endpoint_envelope() -> None:
     assert resp.status_code == 200
     body = resp.json()
     # 2026-11-21 追加知乎 L2 两个可选字段（向后兼容）；2026-11-22 ADR-0005 判定链
-    # 追加 decision（判定级字段落包络，不进卡片 schema），包络集合随之 +3；
-    # 既有字段语义不变，断言强度不降（仍锁定全字段集合防漂移）。
+    # 追加 decision（判定级字段落包络，不进卡片 schema）；2026-11-28 追加结构化
+    # comparisons（按卖点保存 L1/L2 出处与样本分布）。仍锁定全字段集合防漂移。
     assert set(body) == {
         "query",
         "market",
@@ -204,9 +254,17 @@ def test_real_endpoint_envelope() -> None:
         "questions",
         "generated_at",
         "decision",
+        "claim_decisions",
         "l2_cards",
         "l2_notice",
+        "l1_notice",
+        "l1_authorization_scope",
+        "l1_snapshot_sha256",
+        "comparisons",
     }
+    assert body["l1_authorization_scope"] == []
+    assert body["l1_snapshot_sha256"] is None
+    assert body["comparisons"] == []
     assert body["query"] == "puzzle"
     assert body["market"] == "de"
     assert body["data_mode"] == settings.data_mode
@@ -222,8 +280,62 @@ def test_real_endpoint_envelope() -> None:
     for card in body["cards"]:
         assert_card_matches_schema(card)
     assert body["questions"]
-    assert all("待验证" in question for question in body["questions"])
+    assert all("待验证" in question["text"] for question in body["questions"])
+    assert all(question["source"] for question in body["questions"])
+    assert len(body["claim_decisions"]) == 3
+    assert all(item["n_l1"] == 0 for item in body["claim_decisions"])
+    assert body["l1_notice"]
     datetime.fromisoformat(body["generated_at"])  # ISO8601 可解析
+
+
+@pytest.mark.parametrize(
+    "claim_ids",
+    [("capacity", "features", "price"), (None,)],
+)
+def test_real_envelope_never_pools_multiple_or_unassigned_claims(
+    monkeypatch: pytest.MonkeyPatch,
+    claim_ids: tuple[str | None, ...],
+) -> None:
+    cards = [
+        EvidenceCard(
+            excerpt=f"Sehr gut und praktisch. {index}",
+            source_url=f"https://example.com/reviews/{index}",
+            language="de",
+            published_on=date(2026, 11, 1),
+            level=EvidenceLevel.L1,
+            sample_size=1,
+            stance=Stance.SUPPORT,
+            is_demo_data=False,
+            claim_id=claim_ids[index % len(claim_ids)],
+            review_id=f"review-{index}",
+            market="de",
+            source_id="brand-export",
+            authorization="品牌授权导出",
+            authorization_ref="brand-2026",
+        )
+        for index in range(30)
+    ]
+    monkeypatch.setattr(
+        "crosspilot_api.routers.evidence.load_l1_snapshot_data",
+        lambda query: L1SnapshotData(
+            cards,
+            ("internal_product_validation",),
+            snapshot_sha256="a" * 64,
+        ),
+    )
+    monkeypatch.setattr(
+        "crosspilot_api.routers.evidence.search_safety_gate_multi", lambda terms: []
+    )
+    monkeypatch.setattr("crosspilot_api.routers.evidence._collect_l2", lambda query: ([], None))
+    with TestClient(app) as client:
+        response = client.get("/api/evidence", params={"query": "旅行收纳包"})
+    assert response.status_code == 200
+    body = response.json()
+    assert body["stance"] == "insufficient"
+    assert body["decision"]["gate_status"] == "no_l1"
+    assert body["decision"]["n_l1"] == 0
+    assert "多个卖点或未归属评论" in body["decision"]["power_note"]
+    assert all(item["n_l1"] < 30 for item in body["claim_decisions"])
 
 
 def test_real_endpoint_empty_query_and_zero_hit() -> None:
@@ -235,6 +347,12 @@ def test_real_endpoint_empty_query_and_zero_hit() -> None:
             assert body["cards"] == []  # 空查询/零命中不报错，返回空列表
             assert body["stance"] == "insufficient"
             assert body["questions"]  # 缺少有效数据也必须给出待验证问题
+
+
+def test_real_endpoint_rejects_overlong_query() -> None:
+    with TestClient(app) as client:
+        response = client.get("/api/evidence", params={"query": "x" * 101})
+    assert response.status_code == 422
 
 
 def test_demo_conflict_scenario() -> None:
@@ -253,15 +371,21 @@ def test_demo_conflict_scenario() -> None:
     assert decision["state"] == "conflicting"
     assert decision["gate_status"] == "pass"
     assert decision["n_polarized"] == 30  # 去重后有极性样本
-    assert decision["dedup_clusters"] == 30
+    assert decision["dedup_clusters"] == 31  # 30 条有极性 + 1 条未归属无极性
     assert decision["dedup_duplicated"] == 2  # 两条重复摘录被并簇
     # 区间重叠可见：两份额区间均含 0.5 附近（可追溯的冲突依据）
     assert decision["support_interval"] is not None
     assert decision["oppose_interval"] is not None
     assert decision["support_interval"]["lo"] <= 0.5 <= decision["oppose_interval"]["hi"]
     stances = {card["stance"] for card in body["cards"]}
-    assert stances == {"support", "oppose"}  # 支持与反对并存
-    assert len(body["cards"]) == 32  # 30 簇 + 2 条重复摘录
+    assert stances == {"support", "oppose", "insufficient"}
+    assert len(body["cards"]) == 34  # 31 个相关簇 + 1 不相关 + 2 条重复摘录
+    assert any(card["claim_id"] == "unassigned" for card in body["cards"])
+    irrelevant = [card for card in body["cards"] if card["relevance"] == "irrelevant"]
+    assert len(irrelevant) == 1
+    assert irrelevant[0]["claim_id"] is None
+    assert irrelevant[0]["stance"] == "insufficient"
+    assert irrelevant[0]["dedup"] is None
     assert all(card["is_demo_data"] for card in body["cards"])
     assert all(card["level"] == "L1" for card in body["cards"])
     # 去重结果回填卡面：两条重复摘录 is_canonical=False（逐卡可审计）；
@@ -274,6 +398,12 @@ def test_demo_conflict_scenario() -> None:
     for card in body["cards"]:
         assert_card_matches_schema(card)
     assert body["questions"]
+    assert body["l2_cards"] and all(card["is_demo_data"] for card in body["l2_cards"])
+    assert len(body["claim_decisions"]) == 3
+    assert all(item["claim_id"] for item in body["claim_decisions"])
+    assert sum(item["n_l1"] for item in body["claim_decisions"]) == 32
+    assert any("跨来源待验证" in question["text"] for question in body["questions"])
+    assert decision["inference_note"]
 
 
 def test_demo_limited_scenario() -> None:
@@ -302,6 +432,10 @@ def test_demo_limited_scenario() -> None:
     for card in body["cards"]:
         assert_card_matches_schema(card)
     assert body["questions"]
+    assert body["l2_cards"] and all(card["is_demo_data"] for card in body["l2_cards"])
+    assert len(body["claim_decisions"]) == 3
+    assert any("跨来源待验证" in question["text"] for question in body["questions"])
+    assert decision["inference_note"]
 
 
 def test_demo_scenario_validation() -> None:
@@ -318,6 +452,11 @@ def test_demo_cards_declared_l1_source_passes_gate() -> None:
     for card in (*DEMO_CONFLICT_CARDS, *DEMO_LIMITED_CARDS):
         assert card.is_demo_data is True
         assert card.level is EvidenceLevel.L1
+        if card.relevance == "irrelevant":
+            assert card.claim_id is None
+            assert card.stance is Stance.INSUFFICIENT
+        else:
+            assert card.claim_id in {"capacity", "features", "price", "unassigned"}
 
 
 def test_assert_demand_side_rejects_safety_gate() -> None:

@@ -96,7 +96,7 @@ const details: Record<DetailId, { title: string; tag: string; body: string; poin
     points: ["支持与反对分别计算区间", "保留 n 与区间端点", "有限支持仍需扩大样本复核"],
   },
   conflict: {
-    title: "证据相互冲突",
+    title: "样本内存在分歧",
     tag: "保留矛盾",
     body: "当支持与反对区间重叠，系统不做调和，而是把两侧原文并排呈现，要求进一步验证分歧场景。",
     points: ["支持 / 反对同时可见", "不删除少数意见", "下一步转向访谈与原型测试"],

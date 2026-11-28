@@ -2,7 +2,7 @@
 
 适用场景：① 接入一批新爬取/新获取的外部数据；② 从演示态切换到投入使用（live / 提交评审）前做最终核对。
 
-> 最后核对：2026-11-26（GitHub public 仓库 `SilverBullet-Yu/crosspilot` 已推送 `main`，CI 首跑 success）
+> 最后核对：2026-11-28（GitHub public 仓库 `SilverBullet-Yu/crosspilot` 已推送 `main`，CI 首跑 success）
 
 > 本清单位于仓库内 `docs/checklists/`；文中 `apps/`、`docs/`、`data/`、`scripts/` 等路径均相对仓库根目录。
 
@@ -38,7 +38,7 @@
 - [ ] 有已知缺口/禁令的，写进该源 `README.md` 并在 manifest 声明（参照 gdelt 的 SPARSE 写法）
 
 **A4. 验证**
-- [ ] `bash scripts/check.sh` 五道全绿（ruff / mypy strict / 全量测试 / 数据区结构校验 / 时间覆盖校验）
+- [ ] `bash scripts/check.sh` 六道全绿（ruff / mypy strict / 全量测试 / 数据区结构校验 / 时间覆盖校验 / 质量校验）
 - [ ] `docs/devlog/` 当日文件追加记录
 
 ### 路径 B：知乎演示快照 → `data/snapshots/`
@@ -48,6 +48,33 @@
 - [ ] 快照由 `build_snapshot_document` 产出，`zhihu_snapshot.py` 校验通过（该模块是 schema 唯一校验口径）
 - [ ] 合规最小集：摘录 ≤300 字符、作者匿名化（`author_anonymous_id`）、链接回源；顶层与逐卡 `is_demo_data` 一致，不与真实反馈混排
 - [ ] 无发布日期元数据的卡**不收录**（不以捕获日冒充发布日）
+
+### 路径 B2：授权德国 L1 本地导入 → `data/snapshots/l1/`
+
+- [ ] 授权范围明确覆盖内部产品验证；`authorization_scope` 至少包含 `internal_product_validation`，模型处理/赛事演示/公开展示分别声明；若计划公开展示评论，还需覆盖该用途，并留存可审计的 `authorization_ref`
+- [ ] 优先从工作台导出 `crosspilot-l1-import-template.json` 获取 query 与自定义 `claim_terms`；模板不含评论/授权凭据，补齐 `source_id`、`authorization`、`authorization_ref`、`cards` 前不得导入
+- [ ] CSV/JSON 每条评论含原始 `review_id`、`excerpt`、`source_url`、`published_on`、`language`；已归属相关评论含 `claim_id`，相关但未归属评论标记 `claim_id=unassigned`，不相关评论设 `relevance=irrelevant` 且不填 `claim_id`
+- [ ] 自定义卖点使用 JSON 顶层 `claim_terms` 声明 1–20 个本地语言术语；同一 `claim_id` 范围一致，术语进入快照哈希、API `aspect_terms` 与复核回导 JSON
+- [ ] 市场固定 `de`；`source_id`、`authorization`、`authorization_ref` 非空；原始 `review_id` 文件内唯一
+- [ ] 使用 `scripts/plan_l1_sample.py` 生成逐卖点确定性分层采样清单，记录 `snapshot_sha256`、种子、立场/月份分层与不足状态；星级/变体缺少契约字段时由数据提供方另附，不猜测
+- [ ] 在 `/review` 完成待复核评论的立场、归属、相关性与说明；导出 JSON 后用 `--versioned` 写入新版本，复核草稿不算已完成
+- [ ] 使用卖点筛选与原文/评论 ID/来源搜索定位待复核评论，并核对逐卖点进度，避免大体量队列漏审
+- [ ] 复核草稿按 API 返回的 `l1_snapshot_sha256` 隔离；更换快照版本后不得继承旧 `review_id` 的人工立场，导出 JSON 保留 `source_snapshot_sha256`
+- [ ] CSV/JSON 人工填写 `stance` 时必须同时提供非空 `stance_note`；缺失、纯空白或清洗后为空均拒绝导入
+- [ ] 同一卖点下精确或近重复评论若出现不同立场标签，不自动合并；核对 `review_reasons` 中冲突组并人工解决后再计入分歧
+- [ ] readiness 的人工复核门禁仅认可相关 L1 同时满足 `classification_method=manual`、`review_required=false` 和非空 `classification_note`；规则低优先级与 LLM 结果不得冒充人工复核
+- [ ] 记录输入文件 `input_sha256` 与快照 `record_sha256`；同内容幂等、冲突拒写，加载时验证哈希
+- [ ] 先跑 `scripts/import_l1_reviews.py --dry-run`，逐条核对卖点样本、重复簇、门禁/判定、未归属/不相关数量与日期范围；确认无误后再写入快照
+- [ ] 导入后复核快照中的 `review_id` 与来源文件一致，未被数组下标重写；API 卡面显示原始评论 ID 与授权依据
+- [ ] 联系方式已剔除；真实 L1 与演示卡不混排；规则基线立场未经真实评测不得冒充模型结论
+- [ ] `data/reports/l1/` 下的真实采样/评测报告默认不入公开仓库；公开展示前另核授权与脱敏
+- [ ] 内置卖点规则票只统计命中该卖点术语的从句；逐条核对 `review_reasons` 中的相关从句占比与命中术语，确认“夸隔层、骂价格”不会串票
+- [ ] 未命中卖点术语、`claim_id=unassigned` 或未声明 `claim_terms` 的自定义卖点已回退整条规则票并列入人工复核；不得把回退票当作该卖点的精确证据
+- [ ] `real` 场景按 `claim_id` 独立判定；L2/L3 只进入跨来源待验证问题，不改变 L1 偏好判定
+- [ ] 导入完成不等于运营试用完成；仍须由真实运营在工作台为每个活跃卖点保存并确认 `real` 轮次，引用同卖点真实 `review_id: source_url`，填写 `market=de` 并绑定当前 `l1SnapshotSha256`，再导出 `crosspilot-validation-rounds.json` 并归档；单独的 `/history` 运营总结表不计入 readiness
+- [ ] 保存 readiness CLI JSON/API 结果时一并记录 `snapshot_sha256` 与 `rounds_archive_sha256`，确保审计结论可追溯到具体 L1 快照和运营轮次版本
+- [ ] 用 `--claim-id` 或 readiness API 的重复 `claim_id` 参数指定活跃卖点；自定义-only 案例不得被未活跃的内置三项零样本阻塞，活跃零样本仍必须保持证据不足
+- [ ] 轮次归档加载时确认 `round.id` 跨文件唯一；同一 ID 的不同内容文件必须清理后再审计，不得重复计入运营试用
 
 ### 路径 C：改造契约（前后端共同，改动需谨慎）
 
@@ -91,8 +118,8 @@
 ### B5. 产品级强制项与最终验证
 
 - [ ] 证据不足渲染为独立空状态卡片；证据冲突左右并排原文（缺一即功能未完成）
-- [ ] `bash scripts/check.sh` 五道全绿（fresh clone 时 MARC 结构校验一道红属预期）
-- [ ] `bash scripts/check_web.sh` 56 断言全绿；录屏/提交前必跑
+- [ ] `bash scripts/check.sh` 六道全绿（fresh clone 时 MARC 结构校验一道红属预期）
+- [ ] `bash scripts/check_web.sh` 97 断言全绿；录屏/提交前必跑
 - [ ] 演示 Runbook（`docs/demo/演示说明.md`）三场景可达，截图与当前版本一致
 - [ ] GitHub public 仓库 `SilverBullet-Yu/crosspilot` 的 `main` 与本地一致，最近一次 push 的 CI 为 success
 - [ ] `../status/STATUS.md` 更新为当前状态（唯一事实来源，交班最后一件事）

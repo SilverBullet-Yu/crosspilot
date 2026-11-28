@@ -23,16 +23,20 @@ oppose = 负面评价/不推荐，insufficient = 无极性信号或正负冲突�
 
 已知局限（如实）：词典覆盖有限；"nicht nur lecker sondern auch ..." 类结构会
 误翻转；"kann ich nicht bestätigen" 类元否定不处理；讽刺/反语不可识别。餐厅域
-评测结论不可外推为商品域（见 baseline_eval.md）。
+评测结论不可外推为商品域（见 baseline_eval.md）。卖点级入口只对内置术语表
+选择相关从句；自定义卖点或未命中术语时回退整条票并强制人工复核，不能把
+整条评论极性冒充该卖点证据，卖点级规则也尚未独立评测。
 """
 
 from __future__ import annotations
 
 import re
 import unicodedata
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 
 from crosspilot_api.domain.evidence import Stance
+from crosspilot_api.services.claims import claim_aspect_terms
 
 # ---- 词典：手写核心词（书面形式），匹配前统一做折叠归一 ----
 # 德语正面（餐厅/服务/价格域）
@@ -162,8 +166,14 @@ class StanceResult:
     #: 极性净分（正命中数 - 负命中数，翻转已计入）
     score: int
     hits: list[RuleHit] = field(default_factory=list)
-    #: 从句数（切分后的非空从句）
+    #: 实际计分的从句数；卖点级判定只统计命中该卖点的从句
     n_clauses: int = 0
+    #: 文本范围：whole_text / claim_clauses / whole_text_fallback
+    scope: str = "whole_text"
+    #: 全文从句总数，用于解释 claim_clauses 的选择范围
+    total_clauses: int = 0
+    #: 命中的卖点术语（折叠后），按字典序去重
+    matched_aspect_terms: tuple[str, ...] = ()
 
 
 def _lookup(token: str) -> tuple[str, str] | None:
@@ -206,18 +216,15 @@ def split_clauses(text: str) -> list[list[str]]:
     return clauses
 
 
-def classify_stance(text: str) -> StanceResult:
-    """透明规则立场判定：词典命中 + 否定窗口翻转 + 从句级求和。
-
-    空文本或无任何极性命中 -> insufficient；正负相抵（score==0）同样
-    insufficient（证据冲突不可判定）。每个命中都附带规则名与词形，可解释。
-    """
-    if not text or not text.strip():
-        return StanceResult(stance=Stance.INSUFFICIENT, score=0, hits=[], n_clauses=0)
-
+def _classify_clauses(
+    clauses: list[list[str]],
+    *,
+    scope: str,
+    total_clauses: int,
+    matched_aspect_terms: tuple[str, ...] = (),
+) -> StanceResult:
     hits: list[RuleHit] = []
     score = 0
-    clauses = split_clauses(text)
     for tokens in clauses:
         snippet = " ".join(tokens)[:60]
         # 比较级负面：从句内 "besser" + (kann/könnte/mal/früher/...) 即差评句式
@@ -280,7 +287,172 @@ def classify_stance(text: str) -> StanceResult:
         stance = Stance.OPPOSE
     else:
         stance = Stance.INSUFFICIENT
-    return StanceResult(stance=stance, score=score, hits=hits, n_clauses=len(clauses))
+    return StanceResult(
+        stance=stance,
+        score=score,
+        hits=hits,
+        n_clauses=len(clauses),
+        scope=scope,
+        total_clauses=total_clauses,
+        matched_aspect_terms=matched_aspect_terms,
+    )
+
+
+def classify_stance(text: str) -> StanceResult:
+    """透明整条规则判定；既有双域评测与便捷入口保持原口径。"""
+    if not text or not text.strip():
+        return StanceResult(stance=Stance.INSUFFICIENT, score=0, hits=[], n_clauses=0)
+    clauses = split_clauses(text)
+    return _classify_clauses(clauses, scope="whole_text", total_clauses=len(clauses))
+
+
+def _aspect_token_matches(token: str, term_token: str) -> bool:
+    if token == term_token:
+        return True
+    for suffix in _INFLECTION_SUFFIXES:
+        if (
+            token.endswith(suffix)
+            and len(token) > len(suffix) + 2
+            and token[: -len(suffix)] == term_token
+        ):
+            return True
+    return False
+
+
+def _matches_aspect_phrase(tokens: list[str], phrase: tuple[str, ...]) -> bool:
+    if len(tokens) < len(phrase):
+        return False
+    return any(
+        all(_aspect_token_matches(tokens[start + offset], term_token)
+            for offset, term_token in enumerate(phrase))
+        for start in range(len(tokens) - len(phrase) + 1)
+    )
+
+
+def claim_relevant_clauses(
+    text: str,
+    claim_id: str,
+    aspect_terms: Sequence[str] | None = None,
+) -> tuple[str, ...]:
+    """返回命中目标卖点术语的原始从句，供 LLM 证据归属校验。"""
+    terms = claim_aspect_terms(claim_id) if aspect_terms is None else tuple(aspect_terms)
+    phrases = {
+        phrase_tokens
+        for term in terms
+        if (phrase_tokens := tuple(_TOKEN_RE.findall(fold(term))))
+    }
+    if not text.strip() or not phrases:
+        return ()
+    markers = "|".join(
+        sorted((re.escape(marker) for marker in _CLAUSE_MARKERS), key=len, reverse=True)
+    )
+    boundary = re.compile(rf"[.,!?;:()\[\]\"']+|\b(?:{markers})\b", re.IGNORECASE)
+    relevant: list[str] = []
+    for raw_clause in boundary.split(text):
+        clause = raw_clause.strip()
+        tokens = _TOKEN_RE.findall(fold(clause))
+        if any(_matches_aspect_phrase(tokens, phrase) for phrase in phrases):
+            relevant.append(clause)
+    return tuple(relevant)
+
+
+def classify_claim_stance(
+    text: str,
+    claim_id: str,
+    aspect_terms: Sequence[str] | None = None,
+) -> StanceResult:
+    """按卖点选择相关从句后再判极性；无词典命中时回退整条并标记范围。
+
+    未提供 aspect_terms 时使用内置卖点术语表；自定义卖点可显式提供术语。
+    两者都没有时不能猜测语义，回退票只能启动人工复核。
+    """
+    clauses = split_clauses(text) if text and text.strip() else []
+    terms = claim_aspect_terms(claim_id) if aspect_terms is None else tuple(aspect_terms)
+    if not clauses or not terms:
+        result = _classify_clauses(
+            clauses,
+            scope="whole_text_fallback",
+            total_clauses=len(clauses),
+        )
+        return result
+
+    phrases = {
+        phrase_tokens
+        for term in terms
+        if (phrase_tokens := tuple(_TOKEN_RE.findall(fold(term))))
+    }
+    selected: list[list[str]] = []
+    matched_terms: set[str] = set()
+    for clause_tokens in clauses:
+        clause_terms = [
+            " ".join(phrase)
+            for phrase in phrases
+            if _matches_aspect_phrase(clause_tokens, phrase)
+        ]
+        if clause_terms:
+            selected.append(clause_tokens)
+            matched_terms.update(clause_terms)
+    if not selected:
+        return _classify_clauses(
+            clauses,
+            scope="whole_text_fallback",
+            total_clauses=len(clauses),
+        )
+    return _classify_clauses(
+        selected,
+        scope="claim_clauses",
+        total_clauses=len(clauses),
+        matched_aspect_terms=tuple(sorted(matched_terms)),
+    )
+
+
+@dataclass(frozen=True)
+class ReviewTriage:
+    required: bool
+    reasons: tuple[str, ...]
+
+
+def review_triage(text: str, result: StanceResult) -> ReviewTriage:
+    polarities = {hit.polarity for hit in result.hits}
+    scope_reasons: list[str] = []
+    if result.scope == "claim_clauses":
+        scope_reasons.append(
+            f"卖点级规则票：仅计 {result.n_clauses}/{result.total_clauses} 个相关从句；"
+            f"命中术语 {', '.join(result.matched_aspect_terms)}"
+        )
+    elif result.scope == "whole_text_fallback":
+        scope_reasons.append("未命中卖点术语：规则票回退整条评论，必须人工确认卖点相关性")
+
+    strong_support = (
+        result.stance is Stance.SUPPORT
+        and abs(result.score) >= 4
+        and len(text.strip()) >= 20
+        and not any(hit.negated for hit in result.hits)
+        and len(polarities) == 1
+    )
+    if strong_support and result.scope != "whole_text_fallback":
+        return ReviewTriage(
+            False,
+            (
+                *scope_reasons,
+                "强支持信号：原整条规则票在 MARC 商品域该分组精度约 92%；"
+                "卖点级规则尚未独立评测，仍建议抽检",
+            ),
+        )
+    reasons = list(scope_reasons)
+    if result.stance is Stance.INSUFFICIENT:
+        reasons.append("无明确极性或正负相抵")
+    if len(text.strip()) < 40:
+        reasons.append("短评信号不足")
+    if abs(result.score) < 4:
+        reasons.append("规则净分低于保守阈值")
+    if any(hit.negated for hit in result.hits):
+        reasons.append("包含否定翻转")
+    if len(polarities) > 1:
+        reasons.append("正负词同时命中")
+    if result.stance is Stance.OPPOSE:
+        reasons.append("反对类基准精度不足")
+    return ReviewTriage(True, tuple(reasons))
 
 
 def stance_of(text: str) -> Stance:

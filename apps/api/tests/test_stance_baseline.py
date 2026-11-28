@@ -20,8 +20,10 @@ from crosspilot_api.domain.evidence import Stance
 from crosspilot_api.services.stance_baseline import (
     RuleHit,
     StanceResult,
+    classify_claim_stance,
     classify_stance,
     fold,
+    review_triage,
     stance_of,
 )
 
@@ -377,6 +379,86 @@ def _subset_metrics() -> tuple[float, float]:
         f1 = 2 * precision * recall / (precision + recall) if precision + recall else 0.0
         f1s.append(f1)
     return accuracy, sum(f1s) / len(f1s)
+
+
+def test_review_triage_only_accepts_strong_support_as_low_priority() -> None:
+    strong = "Sehr gut, super, toll, klasse und perfekt."
+    result = classify_stance(strong)
+    assert result.stance is Stance.SUPPORT
+    assert review_triage(strong, result).required is False
+
+
+def test_review_triage_keeps_oppose_negation_mixed_and_short_for_review() -> None:
+    samples = [
+        "Schlecht, mies, kaputt, schlimm und furchtbar.",
+        "Nicht schlecht.",
+        "Gut aber schlecht.",
+        "Gut.",
+    ]
+    for text in samples:
+        assert review_triage(text, classify_stance(text)).required is True
+
+
+def test_claim_stance_isolates_cross_claim_polarity() -> None:
+    text = "Der Preis ist überteuert, aber die Fächer sind sehr gut."
+    features = classify_claim_stance(text, "features")
+    price = classify_claim_stance(text, "price")
+    assert features.stance is Stance.SUPPORT
+    assert price.stance is Stance.OPPOSE
+    assert features.scope == price.scope == "claim_clauses"
+    assert features.n_clauses == price.n_clauses == 1
+    assert features.total_clauses == price.total_clauses == 2
+    assert "faecher" in features.matched_aspect_terms
+    assert "preis" in price.matched_aspect_terms
+    assert {hit.word for hit in features.hits} == {"gut"}
+    assert {hit.word for hit in price.hits} == {"ueberteuert"}
+
+
+def test_claim_stance_keeps_negation_inside_selected_clause() -> None:
+    result = classify_claim_stance("Die Fächer sind nicht gut, der Preis ist fair.", "features")
+    assert result.stance is Stance.OPPOSE
+    assert result.hits[0].rule == "negation_flip"
+    assert result.hits[0].negator == "nicht"
+    assert result.n_clauses == 1
+    assert result.total_clauses == 2
+
+
+def test_claim_stance_fallback_requires_review_for_custom_or_missing_terms() -> None:
+    for claim_id in ("features", "custom-waterproof", "unassigned"):
+        text = "Dieses Produkt ist wirklich gut super toll perfekt."
+        result = classify_claim_stance(text, claim_id)
+        assert result.scope == "whole_text_fallback"
+        triage = review_triage(text, result)
+        assert triage.required is True
+        assert any("回退整条评论" in reason for reason in triage.reasons)
+
+
+def test_claim_scope_is_visible_even_for_strong_support() -> None:
+    text = "Die Fächer sind wirklich gut super toll perfekt."
+    result = classify_claim_stance(text, "features")
+    triage = review_triage(text, result)
+    assert result.scope == "claim_clauses"
+    assert triage.required is False
+    assert any("仅计 1/1 个相关从句" in reason for reason in triage.reasons)
+
+
+def test_custom_claim_terms_enable_scoped_stance() -> None:
+    text = "Der Preis ist überteuert, aber die wasserdichte Tasche ist sehr gut."
+    result = classify_claim_stance(text, "custom-waterproof", ("wasserdicht",))
+    assert result.stance is Stance.SUPPORT
+    assert result.scope == "claim_clauses"
+    assert result.n_clauses == 1
+    assert result.total_clauses == 2
+    assert result.matched_aspect_terms == ("wasserdicht",)
+    assert {hit.word for hit in result.hits} == {"gut"}
+
+
+def test_explicit_empty_terms_do_not_fall_back_to_builtin_dictionary() -> None:
+    text = "Der Preis ist überteuert, aber die Fächer sind sehr gut."
+    result = classify_claim_stance(text, "features", ())
+    assert result.stance is Stance.INSUFFICIENT
+    assert result.scope == "whole_text_fallback"
+    assert review_triage(text, result).required is True
 
 
 def test_fixed_subset_metric_floors() -> None:

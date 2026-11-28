@@ -6,8 +6,8 @@ import pytest
 
 from crosspilot_api.services.evidence_dedup import (
     DEDUP_THRESHOLD,
-    MIN_CLUSTER_TEXT_LEN,
     deduplicate,
+    find_stance_conflicts,
     jaccard_similarity,
     normalize_text,
 )
@@ -82,13 +82,74 @@ class TestDeduplicate:
         assert infos[0].cluster_id == infos[1].cluster_id
         assert infos[0].is_canonical and not infos[1].is_canonical
 
-    def test_short_texts_never_cluster(self) -> None:
-        """短文本守卫（C6）：归一化后几乎相同的短好评（无守卫则 Jaccard=1 必聚），
-        因长度低于守卫各自单簇。"""
+    def test_exact_short_duplicates_cluster(self) -> None:
+        """规范化后完全相同的短评必须先去重，不能被短文本守卫绕过。"""
         a, b = "Sehr gut!", "Sehr gut"
-        assert len(normalize_text(a)) < MIN_CLUSTER_TEXT_LEN
-        assert jaccard_similarity(a, b) == 1.0  # 若无守卫会误聚
+        assert normalize_text(a) == normalize_text(b)
         infos = deduplicate([a, b])
+        assert infos[0].cluster_id == infos[1].cluster_id
+        assert infos[0].is_canonical and not infos[1].is_canonical
+        assert all(info.dup_count == 2 for info in infos)
+
+    def test_exact_text_with_opposite_stances_stays_separate(self) -> None:
+        text = "Die Tasche ist sehr gut und praktisch."
+        infos = deduplicate([text, text], ["support", "oppose"])
+        assert infos[0].cluster_id != infos[1].cluster_id
+        assert all(info.is_canonical for info in infos)
+        assert all(info.dup_count == 1 for info in infos)
+
+    def test_stance_conflict_detects_exact_duplicate_labels(self) -> None:
+        text = "Die Tasche ist sehr gut und praktisch."
+        assert find_stance_conflicts([text, text], ["support", "oppose"]) == ((0, 1),)
+        assert find_stance_conflicts([text, text], ["support", "support"]) == ()
+
+    def test_stance_conflict_detects_near_duplicate_labels(self) -> None:
+        template = (
+            "Der größte Beutel riecht beim Auspacken stark nach Chemie, "
+            "auch nach zwei Tagen Lüften nicht neutral."
+        )
+        variant = (
+            "Der größte Beutel riecht beim Auspacken stark nach Chemie, "
+            "auch nach 2 Tagen Lüften nicht neutral."
+        )
+        assert find_stance_conflicts([template, variant], ["support", "oppose"]) == ((0, 1),)
+
+    def test_stance_conflict_keeps_short_distinct_texts_out(self) -> None:
+        assert find_stance_conflicts(["Sehr gut!", "Sehr schlecht!"], ["support", "oppose"]) == ()
+
+    def test_near_duplicate_with_opposite_stances_stays_separate(self) -> None:
+        template = (
+            "Der größte Beutel riecht beim Auspacken stark nach Chemie, "
+            "auch nach zwei Tagen Lüften nicht neutral."
+        )
+        variant = (
+            "Der größte Beutel riecht beim Auspacken stark nach Chemie, "
+            "auch nach 2 Tagen Lüften nicht neutral."
+        )
+        infos = deduplicate([template, variant], ["support", "oppose"])
+        assert infos[0].cluster_id != infos[1].cluster_id
+        assert all(info.is_canonical for info in infos)
+
+    def test_same_stance_near_duplicates_still_cluster(self) -> None:
+        template = (
+            "Der größte Beutel riecht beim Auspacken stark nach Chemie, "
+            "auch nach zwei Tagen Lüften nicht neutral."
+        )
+        variant = (
+            "Der größte Beutel riecht beim Auspacken stark nach Chemie, "
+            "auch nach 2 Tagen Lüften nicht neutral."
+        )
+        infos = deduplicate([template, variant], ["oppose", "oppose"])
+        assert infos[0].cluster_id == infos[1].cluster_id
+        assert infos[0].is_canonical and not infos[1].is_canonical
+
+    def test_stance_length_must_match_texts(self) -> None:
+        with pytest.raises(ValueError, match="等长"):
+            deduplicate(["Sehr gut"], ["support", "oppose"])
+
+    def test_distinct_short_texts_do_not_cluster(self) -> None:
+        """语义相近但并非精确重复的短评仍受近重复短文本守卫保护。"""
+        infos = deduplicate(["Sehr gut!", "Sehr schön!"])
         assert infos[0].cluster_id != infos[1].cluster_id
         assert all(info.dup_count == 1 for info in infos)
 
@@ -126,8 +187,8 @@ class TestDeduplicate:
 
         infos = deduplicate([card.excerpt for card in DEMO_CONFLICT_CARDS])
         canonical = sum(1 for info in infos if info.is_canonical)
-        assert canonical == 30  # 15 support + 15 oppose，重复摘录不新增簇
-        assert len(infos) == 32  # 32 张卡 → 30 簇
+        assert canonical == 32  # 15 support + 15 oppose + 1 未归属 + 1 不相关
+        assert len(infos) == 34  # 34 张卡 → 32 簇；判定管道只取 31 个相关簇
 
     @pytest.mark.parametrize("count", [30, 120])
     def test_scales_to_hundreds(self, count: int) -> None:

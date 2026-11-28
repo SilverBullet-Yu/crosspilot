@@ -352,6 +352,22 @@ def test_live_strips_pii_and_truncates_excerpt() -> None:
     assert extraction.source_url == _item()["Url"]
 
 
+def test_sanitize_excerpt_removes_german_personal_data() -> None:
+    text = (
+        "Ich heiße Max Mustermann und wohne in Musterstraße 12, 10115 Berlin. "
+        "Telefon +49 30 12345678, E-Mail max@example.com."
+    )
+    cleaned = zhihu_client.sanitize_excerpt(text)
+    assert "Max Mustermann" not in cleaned
+    assert "Musterstraße 12" not in cleaned
+    assert " 12," not in cleaned
+    assert "10115 Berlin" not in cleaned
+    assert "+49 30 12345678" not in cleaned
+    assert "max@example.com" not in cleaned
+    assert "[个人信息已剔除]" in cleaned
+    assert "[联系方式已剔除]" in cleaned
+
+
 def test_live_anonymizes_author() -> None:
     """作者匿名化：输出不含昵称原文，ID 稳定可复现（同输入同 ID）。"""
     extraction = search_zhihu_extractions(

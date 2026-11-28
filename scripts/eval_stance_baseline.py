@@ -10,11 +10,12 @@
 分类器（--classifier，默认 rule）：
 - rule：services/stance_baseline.py 透明规则基线，离线零网络，报告写
   baseline_eval.md（保持既有口径不变）。
-- llm：services/stance_llm.py OpenAI 兼容端点（需 .env 配 LLM_API_BASE /
+- llm：services/stance_llm.py OpenAI 兼容端点（需在 shell 导出 LLM_API_BASE /
   LLM_API_KEY / LLM_MODEL 三项，缺一启动即报错退出，不消耗额度）；运行时故障
-  逐条回退规则基线并统计回退率；输出的逐字摘录（evidence）须通过原文子串校验，
-  编造即回退并单列「摘录编造率」与「带可核验摘录率」；结果带磁盘缓存
-  （data/sources/_eval_cache/，sha256(文本) 为键，可中断续跑，两域共用），
+  逐条回退规则基线并统计回退率；回退结果不写缓存，避免下次误算为模型命中；
+  缓存文件按模型、端点哈希与提示词指纹隔离。输出的逐字摘录（evidence）须通过
+  原文子串校验，编造即回退并单列「摘录编造率」与「带可核验摘录率」；结果带
+  磁盘缓存（data/sources/_eval_cache/，sha256(文本) 为键，可中断续跑，两域共用），
   报告写 llm_baseline_eval.md，不做两域自动重跑（成本守卫；两域对照分别跑，
   缓存使第二次只需补新增判定）。
 
@@ -27,6 +28,7 @@
     .venv/Scripts/python.exe scripts/eval_stance_baseline.py
     .venv/Scripts/python.exe scripts/eval_stance_baseline.py --dataset marc
     .venv/Scripts/python.exe scripts/eval_stance_baseline.py --classifier llm --limit 200
+    .venv/Scripts/python.exe scripts/eval_stance_baseline.py --classifier llm --dataset marc --sample-size 200 --seed 42
     # 另支持 --emit-test-sample N SEED：按固定随机种子抽样，输出
     # apps/api/tests/test_stance_baseline.py 内嵌子集的字面量（随测试提交；
     # 该子集固定取自 GERestaurant 主表）
@@ -42,19 +44,33 @@ import csv
 import hashlib
 import json
 import random
-import re
 import sys
 from collections import Counter
 from collections.abc import Callable
+from datetime import date
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT / "apps" / "api" / "src"))
 
 from crosspilot_api.config import settings
-from crosspilot_api.domain.evidence import Stance
-from crosspilot_api.services.stance_baseline import classify_stance
-from crosspilot_api.services.stance_llm import classify_stance_with_fallback
+from crosspilot_api.domain.evidence import EvidenceCard, Stance
+from crosspilot_api.services.l1_import import (
+    L1_SNAPSHOT_DIR,
+    L1SnapshotData,
+    load_l1_snapshot_data,
+)
+from crosspilot_api.services.stance_baseline import (
+    classify_claim_stance,
+    classify_stance,
+    review_triage,
+)
+from crosspilot_api.services.stance_llm import (
+    CLAIM_STANCE_PROMPT_FINGERPRINT,
+    STANCE_PROMPT_FINGERPRINT,
+    classify_claim_stance_with_fallback,
+    classify_stance_with_fallback,
+)
 
 # 两个基准的主表与报告输出位置（离线读取，均不含网络请求）
 DATASETS: dict[str, dict[str, Path | str]] = {
@@ -133,6 +149,117 @@ def evaluate(
     }
 
 
+def evaluate_l1_snapshot(
+    snapshot: L1SnapshotData,
+    query: str,
+    *,
+    classifier: Callable[[str, str, tuple[str, ...]], Stance] | None = None,
+) -> dict[str, object]:
+    relevant = [
+        card
+        for card in snapshot.cards
+        if card.level.value == "L1"
+        and not card.is_demo_data
+        and card.relevance == "relevant"
+    ]
+    gold_cards = [
+        card
+        for card in relevant
+        if card.claim_id
+        and card.claim_id != "unassigned"
+        and card.classification_method == "manual"
+        and card.review_required is False
+        and bool((card.classification_note or "").strip())
+        and card.stance_votes is not None
+    ]
+    grouped: dict[str, list[EvidenceCard]] = {}
+    for card in gold_cards:
+        grouped.setdefault(card.claim_id or "", []).append(card)
+    if not grouped:
+        raise ValueError("没有可用于卖点评测的人工复核 L1 金标")
+    claims: dict[str, dict[str, object]] = {}
+    for claim_id, cards in sorted(grouped.items()):
+        terms = cards[0].aspect_terms
+        rows = [(card.excerpt, card.stance.value) for card in cards]
+        metrics = evaluate(
+            rows,
+            lambda text, claim_id=claim_id, terms=terms: (
+                classifier(text, claim_id, terms)
+                if classifier is not None
+                else classify_claim_stance(text, claim_id, terms or None).stance
+            ),
+        )
+        claims[claim_id] = metrics
+    return {
+        "query": query,
+        "snapshot_sha256": snapshot.snapshot_sha256,
+        "relevant_total": len(relevant),
+        "manual_gold_total": len(gold_cards),
+        "claims": claims,
+    }
+
+
+def render_l1_report(report: dict[str, object]) -> str:
+    claims = report["claims"]
+    assert isinstance(claims, dict)
+    lines = [
+        "# 授权 L1 卖点级规则立场评测",
+        "",
+        f"- query：{report['query']}",
+        f"- snapshot_sha256：{report['snapshot_sha256'] or '未加载'}",
+        f"- 相关真实 L1：{report['relevant_total']} 条",
+        f"- 人工复核金标：{report['manual_gold_total']} 条",
+        "- 金标口径：人工最终立场；仅计入 manual + review_required=false + 非空复核说明的评论",
+        "- 预测口径：按 claim_id 与 aspect_terms 选择相关从句后运行规则基线",
+        "- 边界：只评价当前授权样本内的卖点级分类，不代表总体消费者偏好或市场效果",
+        "",
+    ]
+    llm = report.get("llm")
+    if isinstance(llm, dict):
+        lines[0] = "# 授权 L1 卖点级 LLM 立场评测"
+        lines[7] = "- 预测口径：LLM 接收 claim_id 与 aspect_terms，只判断目标卖点"
+        lines.insert(6, f"- 模型：{llm.get('model')}；提示词指纹：{llm.get('prompt_fingerprint')}")
+        lines.insert(7, f"- LLM 统计：{llm.get('stats')}")
+    for claim_id, metrics in claims.items():
+        assert isinstance(metrics, dict)
+        lines += metrics_table_lines(f"## {claim_id}", metrics)
+        confusion = metrics["confusion"]
+        assert isinstance(confusion, dict)
+        lines += confusion_lines(confusion)
+    return "\n".join(lines)
+
+
+def l1_report_payload(report: dict[str, object]) -> dict[str, object]:
+    claims = report["claims"]
+    assert isinstance(claims, dict)
+    serialized_claims: dict[str, dict[str, object]] = {}
+    for claim_id, metrics in claims.items():
+        assert isinstance(metrics, dict)
+        confusion = metrics["confusion"]
+        assert isinstance(confusion, dict)
+        serialized_claims[claim_id] = {
+            "total": metrics["total"],
+            "accuracy": metrics["accuracy"],
+            "macro_f1": metrics["macro_f1"],
+            "per_class": metrics["per_class"],
+            "confusion": {
+                f"{gold}->{pred}": count
+                for (gold, pred), count in confusion.items()
+            },
+        }
+    return {
+        "schema_version": 1,
+        "source_api": "crosspilot_l1_stance_eval",
+        "query": report["query"],
+        "snapshot_sha256": report["snapshot_sha256"],
+        "relevant_total": report["relevant_total"],
+        "manual_gold_total": report["manual_gold_total"],
+        "claims": serialized_claims,
+        "llm": report.get("llm"),
+        "market_effect_claim_allowed": False,
+    }
+
+
 def error_buckets(results: list[tuple[str, str, Stance]]) -> dict[str, list[str]]:
     """按错误类型归集示例（每类截取前 6 条，截断至 110 字符）。"""
     buckets: dict[str, list[str]] = {
@@ -168,26 +295,57 @@ def emit_test_sample(size: int, seed: int) -> None:
     print(json.dumps(payload, ensure_ascii=False, indent=2))
 
 
+def sample_rows(
+    rows: list[tuple[str, str]], sample_size: int, seed: int
+) -> list[tuple[str, str]]:
+    """固定种子随机抽样并保持主表原顺序，确保子集可复现且不是前 N 条偏置。"""
+    if sample_size <= 0 or sample_size >= len(rows):
+        return rows
+    indices = sorted(random.Random(seed).sample(range(len(rows)), sample_size))
+    return [rows[index] for index in indices]
+
+
+def llm_endpoint_namespace(api_base: str) -> str:
+    """缓存命名空间只含端点哈希，不保存可能敏感的完整地址。"""
+    return hashlib.sha256(api_base.rstrip("/").encode("utf-8")).hexdigest()[:16]
+
+
+def model_cache_namespace(model: str) -> str:
+    return hashlib.sha256(model.encode("utf-8")).hexdigest()[:16]
+
+
 def make_llm_classifier(
     model: str,
+    api_base: str = "",
 ) -> tuple[Callable[[str], Stance], dict[str, int]]:
     """构造带磁盘缓存的 LLM 分类器（成本守卫，ADR-0004）。
 
-    缓存以 sha256(文本) 为键，JSONL 追加式落盘于 data/sources/_eval_cache/
-    （下划线目录，validate_sources 不视为来源），可中断续跑；两域评测共用同一
-    缓存文件（键只含文本哈希），第二次跑另一域时已判定文本直接命中。运行时
-    故障逐条回退规则基线并计入 stats["fallback"]，回退率随报告留痕。
+    缓存文件按模型、端点哈希与提示词指纹隔离，避免提示词或供应商变化后误用
+    旧结论。只缓存成功的 LLM 结果；规则回退不是模型评测样本，必须逐次重试并
+    计入回退率，不能在下一次运行时伪装成缓存命中。
     """
     cache_dir = REPO_ROOT / "data" / "sources" / "_eval_cache"
     cache_dir.mkdir(parents=True, exist_ok=True)
-    safe_model = re.sub(r"[^A-Za-z0-9._-]", "-", model)
-    cache_path = cache_dir / f"llm_stance_{safe_model}.jsonl"
+    safe_model = model_cache_namespace(model)
+    endpoint_namespace = llm_endpoint_namespace(api_base)
+    cache_path = cache_dir / (
+        f"llm_stance_{safe_model}_{endpoint_namespace}_"
+        f"{STANCE_PROMPT_FINGERPRINT[:12]}.jsonl"
+    )
     cache: dict[str, str] = {}
     if cache_path.exists():
         with cache_path.open(encoding="utf-8") as fh:
             for line in fh:
                 if line.strip():
                     rec = json.loads(line)
+                    if rec.get("fallback") is not False:
+                        continue
+                    if rec.get("prompt_fingerprint") != STANCE_PROMPT_FINGERPRINT:
+                        continue
+                    if rec.get("endpoint_namespace") != endpoint_namespace:
+                        continue
+                    if rec.get("model") != model:
+                        continue
                     cache[str(rec["key"])] = str(rec["stance"])
     stats = {"hit": 0, "fresh": 0, "fallback": 0, "fabricated_evidence": 0, "with_evidence": 0}
 
@@ -196,16 +354,19 @@ def make_llm_classifier(
         if key in cache:
             stats["hit"] += 1
             return Stance(cache[key])
-        res = classify_stance_with_fallback(text)
+        res = classify_stance_with_fallback(text, model=model, api_base=api_base or None)
+        if not res.llm_called:
+            return res.stance
+        stats["fresh"] += 1
         if res.fallback_used:
             stats["fallback"] += 1
             # 摘录编造是 LLMResponseError 的一种，单列统计：它衡量的是模型
             # 可追溯性而非链路可用性，与网络/HTTP 故障不同质，不可混计。
             if "非原文逐字片段" in (res.fallback_reason or ""):
                 stats["fabricated_evidence"] += 1
-        elif res.evidence:
+            return res.stance
+        if res.evidence:
             stats["with_evidence"] += 1
-        stats["fresh"] += 1
         cache[key] = res.stance.value
         with cache_path.open("a", encoding="utf-8") as fh:
             fh.write(
@@ -213,10 +374,89 @@ def make_llm_classifier(
                     {
                         "key": key,
                         "stance": res.stance.value,
-                        "reason": res.reason,
-                        "evidence": res.evidence,
                         "model": res.model,
-                        "fallback": res.fallback_used,
+                        "fallback": False,
+                        "prompt_fingerprint": STANCE_PROMPT_FINGERPRINT,
+                        "endpoint_namespace": endpoint_namespace,
+                    },
+                    ensure_ascii=False,
+                )
+                + "\n"
+            )
+        return res.stance
+
+    return classify, stats
+
+
+def make_claim_llm_classifier(
+    model: str,
+    api_base: str = "",
+) -> tuple[Callable[[str, str, tuple[str, ...]], Stance], dict[str, int]]:
+    cache_dir = REPO_ROOT / "data" / "sources" / "_eval_cache"
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    safe_model = model_cache_namespace(model)
+    endpoint_namespace = llm_endpoint_namespace(api_base)
+    cache_path = cache_dir / (
+        f"llm_claim_stance_{safe_model}_{endpoint_namespace}_"
+        f"{CLAIM_STANCE_PROMPT_FINGERPRINT[:12]}.jsonl"
+    )
+    cache: dict[str, str] = {}
+    if cache_path.exists():
+        with cache_path.open(encoding="utf-8") as fh:
+            for line in fh:
+                if not line.strip():
+                    continue
+                rec = json.loads(line)
+                if rec.get("fallback") is not False:
+                    continue
+                if rec.get("prompt_fingerprint") != CLAIM_STANCE_PROMPT_FINGERPRINT:
+                    continue
+                if rec.get("endpoint_namespace") != endpoint_namespace:
+                    continue
+                if rec.get("model") != model:
+                    continue
+                cache[str(rec["key"])] = str(rec["stance"])
+    stats = {"hit": 0, "fresh": 0, "fallback": 0, "fabricated_evidence": 0, "with_evidence": 0}
+
+    def classify(text: str, claim_id: str, aspect_terms: tuple[str, ...]) -> Stance:
+        key = hashlib.sha256(
+            json.dumps(
+                [text, claim_id, list(aspect_terms)],
+                ensure_ascii=False,
+                separators=(",", ":"),
+            ).encode("utf-8")
+        ).hexdigest()
+        if key in cache:
+            stats["hit"] += 1
+            return Stance(cache[key])
+        res = classify_claim_stance_with_fallback(
+            text,
+            claim_id,
+            aspect_terms,
+            model=model,
+            api_base=api_base or None,
+        )
+        if not res.llm_called:
+            return res.stance
+        stats["fresh"] += 1
+        if res.fallback_used:
+            stats["fallback"] += 1
+            if "非原文逐字片段" in (res.fallback_reason or ""):
+                stats["fabricated_evidence"] += 1
+            return res.stance
+        if res.evidence:
+            stats["with_evidence"] += 1
+        cache[key] = res.stance.value
+        with cache_path.open("a", encoding="utf-8") as fh:
+            fh.write(
+                json.dumps(
+                    {
+                        "key": key,
+                        "stance": res.stance.value,
+                        "model": res.model,
+                        "fallback": False,
+                        "prompt_fingerprint": CLAIM_STANCE_PROMPT_FINGERPRINT,
+                        "endpoint_namespace": endpoint_namespace,
                     },
                     ensure_ascii=False,
                 )
@@ -229,12 +469,15 @@ def make_llm_classifier(
 
 def write_llm_report(
     dataset: dict[str, Path | str],
-    dataset_key: str,
     metrics: dict[str, object],
     buckets: dict[str, list[str]],
     model: str,
     stats: dict[str, int],
     n_evaluated: int,
+    selection: str,
+    prompt_fingerprint: str,
+    endpoint_namespace: str,
+    repro_command: str,
 ) -> None:
     """LLM 分类器报告（写 llm_baseline_eval.md，不覆盖规则基线报告）。"""
     out_md = dataset["out_md"]
@@ -250,11 +493,14 @@ def write_llm_report(
     lines = [
         f"# {dataset['domain']} LLM 立场抽取评测结果",
         "",
-        "- 评测日期：2026-11-21",
+        "- 评测日期：" + date.today().isoformat(),
         (f"- 分类器：`services/stance_llm.py`（OpenAI 兼容 chat/completions，"
          f"model=`{model}`，temperature=0，JSON 契约强制）"),
+        f"- 样本选择：{selection}",
         (f"- 判定数：{n_evaluated}（缓存命中 {stats['hit']} / 新调用 {stats['fresh']}；"
          "缓存于 `data/sources/_eval_cache/`，可中断续跑）"),
+        f"- 提示词指纹：`{prompt_fingerprint}`；端点命名空间：`{endpoint_namespace}`",
+        ("- 缓存只收录成功的 LLM 结果；规则回退不缓存，避免下次运行把回退误算为模型命中"),
         (f"- 回退规则基线：{stats['fallback']} 条（{fallback_rate:.1%}）——网络/响应"
          "故障逐条回退并留痕，不编造立场"),
         (f"- 逐字摘录编造：{fabricated} / {fresh} 次新调用（{fabricated_rate:.1%}）"
@@ -263,6 +509,8 @@ def write_llm_report(
         (f"- 带可核验摘录：{with_evidence} / {fresh} 次新调用（{evidence_rate:.1%}）"
          "——通过原文子串校验，可直接填入证据卡「原文摘录」字段"),
         f"- 金标口径：{dataset['gold_rule']}",
+        ("- 金标是评论整体极性/满意度，不是 CrossPilot 的卖点级 aspect 标签；"
+         "本报告只能评测分类器，不能证明真实卖点判断或总体市场效果"),
         ("- 对照靶：规则基线同域结果见同目录 `baseline_eval.md`（餐厅域 accuracy "
          "0.610 / 商品域 0.580）；**LLM 方案的启用前提（ADR-0004）：至少在 oppose "
          "recall 上超过规则基线**，未达标则继续用规则基线"),
@@ -279,7 +527,7 @@ def write_llm_report(
         "",
         "```",
         "# 先在 shell 导出 LLM_API_BASE / LLM_API_KEY / LLM_MODEL（.env 不会被脚本自动加载）",
-        f".venv/Scripts/python.exe scripts/eval_stance_baseline.py --classifier llm --dataset {dataset_key}",
+        repro_command,
         "```",
         "",
     ]
@@ -469,6 +717,40 @@ def cross_domain_lines(ger: dict[str, object], marc: dict[str, object]) -> list[
     return lines
 
 
+def review_triage_lines(results: list[tuple[str, str, Stance]]) -> list[str]:
+    low: list[tuple[str, str]] = []
+    review: list[tuple[str, str]] = []
+    for text, gold, stance in results:
+        target = review if review_triage(text, classify_stance(text)).required else low
+        target.append((gold, stance.value))
+
+    def accuracy(rows: list[tuple[str, str]]) -> float:
+        return sum(gold == pred for gold, pred in rows) / len(rows) if rows else 0.0
+
+    lines = [
+        "## 人工复核分流（仅用于分流，不构成自动接受）",
+        "",
+        ("- 低复核优先级：强支持、净分≥4、长度≥20、无否定翻转、无正负混合；"
+         f"覆盖 {len(low)}/{len(results)}（{len(low) / len(results):.1%}），"
+         f"准确率 {accuracy(low):.3f}。"),
+        (f"- 建议人工复核：{len(review)}/{len(results)}"
+         f"（{len(review) / len(results):.1%}），准确率 {accuracy(review):.3f}。"),
+        ("- 反对、否定翻转、正负混合、短评与无明确极性一律进入人工复核；"
+         "低复核优先级仍建议抽检，不把规则结果当作已验证模型输出。"),
+        ("- 该评测金标是评论整体星级/印象，不是 CrossPilot 的卖点级 aspect 标签；"
+         "分流准确率不能替代真实授权评论上的卖点归属与立场复核。"),
+        "",
+    ]
+    for stance in STANCES:
+        subset = [item for item in low if item[1] == stance]
+        if subset:
+            lines.append(
+                f"- 低优先级预测 {stance}：{len(subset)} 条，准确率 {accuracy(subset):.3f}。"
+            )
+    lines.append("")
+    return lines
+
+
 def write_marc_report(dataset: dict[str, Path | str], metrics: dict[str, object],
                       buckets: dict[str, list[str]],
                       ger_metrics: dict[str, object]) -> None:
@@ -496,6 +778,7 @@ def write_marc_report(dataset: dict[str, Path | str], metrics: dict[str, object]
     confusion: dict[tuple[str, str], int] = metrics["confusion"]  # type: ignore[assignment]
     lines += confusion_lines(confusion)
     lines += error_bucket_lines(buckets, domain="商品域")
+    lines += review_triage_lines(metrics["results"])  # type: ignore[arg-type]
     lines += cross_domain_lines(ger_metrics, metrics)
     lines += [
         "## 复现",
@@ -511,23 +794,81 @@ def write_marc_report(dataset: dict[str, Path | str], metrics: dict[str, object]
 
 def main() -> int:
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
-    parser = argparse.ArgumentParser(description="立场分类器评测（GERestaurant / MARC）")
-    parser.add_argument("--dataset", choices=sorted(DATASETS), default="gerestaurant",
-                        help="评测哪个基准（默认 gerestaurant；marc 报告含两域对照）")
+    parser = argparse.ArgumentParser(description="立场分类器评测（GERestaurant / MARC / 授权 L1）")
+    parser.add_argument("--dataset", choices=(*sorted(DATASETS), "l1"), default="gerestaurant",
+                        help="评测哪个基准（默认 gerestaurant；marc 报告含两域对照；l1 为授权卖点评测）")
     parser.add_argument("--classifier", choices=("rule", "llm"), default="rule",
                         help="rule=透明规则基线（离线）；llm=OpenAI 兼容端点"
                         "（需 .env 三项配置，带磁盘缓存与回退统计，报告写"
                         " llm_baseline_eval.md）")
     parser.add_argument("--limit", type=int, default=0,
-                        help="只评测主表前 N 条（确定性行序，成本守卫）；0=全量")
+                        help="只评测主表前 N 条（确定性行序，成本冒烟）；0=全量")
+    parser.add_argument("--sample-size", type=int, default=0,
+                        help="LLM 固定种子随机抽样 N 条；与 --limit 互斥，0=不抽样")
+    parser.add_argument("--seed", type=int, default=42,
+                        help="--sample-size 的随机种子（默认 42）")
     parser.add_argument("--emit-test-sample", nargs=2, metavar=("N", "SEED"),
                         default=None,
                         help="按固定种子抽 N 条，输出测试内嵌子集字面量后退出"
                         "（固定取自 GERestaurant 主表）")
+    parser.add_argument("--query", default="", help="--dataset l1 时的授权快照查询词")
+    parser.add_argument("--snapshot-dir", type=Path, default=L1_SNAPSHOT_DIR,
+                        help="--dataset l1 时的 L1 快照目录")
+    parser.add_argument("--output", type=Path, default=None,
+                        help="--dataset l1 时可选：将不含原文的 JSON 指标报告写入指定路径")
     args = parser.parse_args()
+    if args.limit < 0 or args.sample_size < 0:
+        parser.error("--limit 与 --sample-size 不能为负数")
+    if args.limit and args.sample_size:
+        parser.error("--limit 与 --sample-size 互斥；随机抽样请用 --sample-size")
+    if args.sample_size and args.classifier != "llm":
+        parser.error("--sample-size 当前仅用于 llm 评测；rule 全量基线请用 --dataset")
     if args.emit_test_sample:
         size, seed = int(args.emit_test_sample[0]), int(args.emit_test_sample[1])
         emit_test_sample(size, seed)
+        return 0
+
+    if args.dataset == "l1":
+        if not args.query.strip():
+            parser.error("--dataset l1 必须提供 --query")
+        if args.limit or args.sample_size:
+            parser.error("--dataset l1 不使用 --limit/--sample-size，避免破坏人工金标分层")
+        if args.output and args.output.resolve().is_relative_to(args.snapshot_dir.resolve()):
+            parser.error("--output 不得写入 L1 快照目录，避免报告被加载器误判为快照")
+        snapshot = load_l1_snapshot_data(args.query, args.snapshot_dir)
+        if snapshot.notice:
+            print(f"[eval] {snapshot.notice}")
+            return 1
+        try:
+            if args.classifier == "llm":
+                if not (settings.llm_api_base and settings.llm_api_key and settings.llm_model):
+                    print("[eval] LLM 未配置：--classifier llm 需要先在 shell 导出 "
+                          "LLM_API_BASE / LLM_API_KEY / LLM_MODEL 三项（缺一不启动，不消耗额度）")
+                    return 1
+                classify, llm_stats = make_claim_llm_classifier(
+                    settings.llm_model,
+                    settings.llm_api_base or "",
+                )
+                report = evaluate_l1_snapshot(snapshot, args.query, classifier=classify)
+                report["llm"] = {
+                    "model": settings.llm_model,
+                    "prompt_fingerprint": CLAIM_STANCE_PROMPT_FINGERPRINT,
+                    "endpoint_namespace": llm_endpoint_namespace(settings.llm_api_base or ""),
+                    "stats": llm_stats,
+                }
+            else:
+                report = evaluate_l1_snapshot(snapshot, args.query)
+        except ValueError as exc:
+            print(f"[eval] {exc}")
+            return 1
+        print(render_l1_report(report))
+        if args.output:
+            args.output.parent.mkdir(parents=True, exist_ok=True)
+            args.output.write_text(
+                json.dumps(l1_report_payload(report), ensure_ascii=False, indent=2) + "\n",
+                encoding="utf-8",
+            )
+            print(f"[eval] JSON 报告已写入 {args.output}")
         return 0
 
     dataset = DATASETS[args.dataset]
@@ -537,8 +878,23 @@ def main() -> int:
     if not rows:
         print(f"[eval] 主表为空或缺失：{main_table}；先跑对应 fetch_*.py")
         return 1
+    selection = "全量主表（官方 held-out 分片）"
     if args.limit and args.limit > 0:
         rows = rows[: args.limit]
+        selection = f"主表前 {args.limit} 条（确定性行序，仅成本冒烟，非随机样本）"
+    elif args.sample_size:
+        if args.sample_size > len(rows):
+            parser.error(f"--sample-size {args.sample_size} 超过主表 {len(rows)} 条")
+        rows = sample_rows(rows, args.sample_size, args.seed)
+        selection = f"固定种子随机抽样 {args.sample_size} 条（seed={args.seed}，保持主表原顺序）"
+    repro_command = (
+        ".venv/Scripts/python.exe scripts/eval_stance_baseline.py "
+        f"--classifier llm --dataset {args.dataset}"
+    )
+    if args.limit:
+        repro_command += f" --limit {args.limit}"
+    if args.sample_size:
+        repro_command += f" --sample-size {args.sample_size} --seed {args.seed}"
 
     if args.classifier == "llm":
         if not (settings.llm_api_base and settings.llm_api_key and settings.llm_model):
@@ -546,11 +902,22 @@ def main() -> int:
                   "LLM_API_BASE / LLM_API_KEY / LLM_MODEL 三项（缺一不启动，不消耗额度）")
             return 1
         model = settings.llm_model
-        classify, llm_stats = make_llm_classifier(model)
+        api_base = settings.llm_api_base or ""
+        classify, llm_stats = make_llm_classifier(model, api_base)
         metrics = evaluate(rows, classify)
         buckets = error_buckets(metrics["results"])  # type: ignore[arg-type]
-        write_llm_report(dataset, args.dataset, metrics, buckets, model,
-                         llm_stats, len(rows))
+        write_llm_report(
+            dataset,
+            metrics,
+            buckets,
+            model,
+            llm_stats,
+            len(rows),
+            selection,
+            STANCE_PROMPT_FINGERPRINT,
+            llm_endpoint_namespace(api_base),
+            repro_command,
+        )
     else:
         metrics = evaluate(rows, lambda text: classify_stance(text).stance)
         buckets = error_buckets(metrics["results"])  # type: ignore[arg-type]

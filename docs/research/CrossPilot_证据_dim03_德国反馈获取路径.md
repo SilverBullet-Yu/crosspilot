@@ -1,6 +1,6 @@
 # 维度 03｜德国侧反馈的合法获取路径（对应清单 P0-1）
 
-核对日期：2026-11-18
+核对日期：2026-11-18；契约更新：2026-11-27
 
 ## 说明：本维度能做什么、不能做什么
 
@@ -42,7 +42,12 @@
 | 采集时间 | 具体日期 | 「近期」 |
 | 样本量 | 具体条数 | 「若干」 |
 | 本品/竞品 | 明确标注 | 混记 |
-| 许可范围 | 内部分析 / 模型处理 / 赛事演示（分别记录） | 「已授权」 |
+| 原始评论 ID | 来源系统原始 `review_id`，文件内唯一 | 导入后重新编号 |
+| 逐条出处 | 可打开的 HTTPS `source_url` 或授权导出记录链接 | 只有平台名称 |
+| 评论日期 | `published_on=YYYY-MM-DD` | 以导出日冒充评论日 |
+| 卖点归属 | 已归属相关评论 `claim_id=capacity/features/price`；相关但未归属 `claim_id=unassigned`；不相关 `relevance=irrelevant` | 全部混入同一结论或把未归属误标为不相关 |
+| 许可范围 | 内部分析 / 模型处理 / 赛事演示 / 公开展示（分别记录） | 「已授权」 |
+| 授权依据 | 可审计 `authorization_ref`（合同号、导出记录号或书面许可编号） | 非空但无法追溯的说明 |
 
 ## 3.4 清单各项当前状态
 
@@ -58,8 +63,50 @@
 ## 3.5 可执行的解除路径（按优先级）
 
 1. **本周内**：向目标合作品牌提出三项请求——① 一组德国站真实反馈导出（含站点与时间字段）；② 书面授权书，分列内部分析/模型处理/赛事演示三类用途；③ 脱敏后的商品资料。这三项同时也解决 P0-3 的第二个勾选项。
-2. **若品牌方无法提供**：改为访谈取证。由运营或其德国渠道伙伴提供 3–5 条有明确来源记录的售后反馈转述，按 3.3 的字段登记，并在证据卡上标注证据等级为「间接转述」。
+2. **若品牌方无法提供**：可做访谈取证，由运营或其德国渠道伙伴提供 3–5 条有明确来源记录的售后反馈转述，按 3.3 的字段登记并标为「间接转述」。间接转述不是 L1 一手评论，不能通过 n≥30 的偏好判定门禁，只能用于形成访谈问题或原型测试任务。
 3. **两条都不成立时**：按方案 4.3 的既有承诺，演示全程使用标注清楚的模拟数据，并在路演中**主动说明**真实德国侧证据尚未取得——这比被评委问出来更安全，也符合手册的原创与诚信要求。
+
+## 3.6 可直接转发给品牌方的数据请求包
+
+请求文本：
+
+> 请为 CrossPilot 提供一组真实德国市场消费者评论，用于「旅行收纳包 × 德国站详情页卖点」上线前验证。请按每个活跃卖点分别提供至少 30 条去重后、具有明确支持或反对极性的评论；若同时验证容量、功能、价格三个卖点，建议合计约 90 条，另保留不相关与相关但未归属评论，不要只挑选好评。每条需含原始 `review_id`、原文摘录、HTTPS 来源链接、评论日期、语言；已归属相关评论请标注 `capacity`（容量）、`features`（功能）或 `price`（价格）；产品相关但尚未归属的评论可留空，由导入器标记 `unassigned`；不相关评论标 `relevance=irrelevant`。请不要提供评论者姓名、邮箱、电话、地址或头像。市场归属请用店铺站点/订单配送国证明，不能用德语文本代替。授权需分列内部产品验证、模型处理、赛事演示和公开展示范围，并提供可审计的 `authorization_ref`。
+
+交付物：
+
+1. CSV 或 JSON 评论文件，表头对齐 `README.md`「导入授权德国评论」。
+2. 授权说明、`authorization_ref` 与 `authorization_scope`；至少声明 `internal_product_validation`，模型处理/赛事演示/公开展示分别勾选。仅授权内部验证时，评论不得进入公开仓库或公开展示，`data/snapshots/l1/` 默认被 Git 忽略。
+3. 商品资料：标题、ASIN/商品 ID、变体、上架状态、当前详情页首屏卖点、目标决策日期。
+4. 数据范围说明：导出日期、覆盖时间、站点、样本量、是否包含全部差评/退货反馈；请尽量按星级、时间与商品变体分层，并附采样框及去重后每个卖点的支持/反对/无极性计数。
+
+## 3.7 跨境运营试用执行包
+
+**前置条件**：授权 L1 已通过 dry-run 并导入；`real` 场景只含真实卡；运营本人是品牌负责人、德国站运营或跨境代运营，不能由 Agent 代填。
+
+**建议时长**：30–45 分钟。
+
+1. **先独立记录初始判断**：在查看证据前写下当前首屏卖点、保留/修改/暂停决定及理由。
+2. **核对证据出处**：打开 `/workbench?scenario=real`，逐条查看活跃卖点的独立判定；每个卖点至少核对一组真实 `review_id: source_url`，并检查市场、日期与 `authorization_ref`。
+3. **做出运营决定**：对每条活跃卖点写「保留 / 修改 / 暂停」及依据；明确哪些来自 L1、哪些只是 L2/L3 待验证问题。
+4. **处理样本分歧**：对存在分歧的卖点执行同组原型测试——多隔层版 vs 开放空间版，记录装什么、怎么取、哪里麻烦，不把 Agent 推断当运营意见。
+5. **逐卖点回填真实轮次**：在工作台为每条活跃卖点保存一轮 `real` 场景记录，引用该卖点真实 `review_id: source_url`，确认 `market=de` 与当前 `l1SnapshotSha256`，填写观察、决定、理由、下一步与负责人，由运营本人确认。
+6. **归档并复核门禁**：在 `/history` 导出 `crosspilot-validation-rounds.json`，先 dry-run 再正式归档；运行 `scripts/audit_case.py` 确认达到 `trial_complete`。`/history` 的运营总结表单可另存为交接说明，但单独导出总结表不会计入 readiness。
+
+```bash
+.venv/Scripts/python.exe scripts/import_validation_rounds.py \
+  --input crosspilot-validation-rounds.json --dry-run
+.venv/Scripts/python.exe scripts/import_validation_rounds.py \
+  --input crosspilot-validation-rounds.json
+.venv/Scripts/python.exe scripts/audit_case.py --query 旅行收纳包
+```
+
+**验收证据**：试用日期、真实运营角色、真实商品与市场、每条活跃卖点至少一组证据 ID/链接、改动过的卖点决定、原型观察、已确认 `real` 轮次及归档、`trial_complete` 审计结果、下一步负责人。缺少任一项即保持「待执行/待确认」。
+
+## 3.8 当前外部阻塞
+
+- 品牌数据请求包尚未收到回复，`data/snapshots/l1/` 仍为空。
+- 尚未指派真实运营负责人，`/history` 没有可核验的真人试用记录。
+- 在两项输入到位前，P0-1 与 P0-3 均不得标为通过。
 
 [^sp]: Data available through the Amazon Selling Partner API — AWS Prescriptive Guidance. 2026-11-18 读取. https://docs.aws.amazon.com/prescriptive-guidance/latest/strategy-gen-ai-selling-partner-api/data-sp-api.html
 [^zenodo]: Freedom to Share: How Government's Data Sharing Policies Concerning Publicly Available Data Impact Academic Research and Journalism in the Public Interest. Creative Commons / Zenodo. 2026-11-18 读取. https://zenodo.org/records/7755348
